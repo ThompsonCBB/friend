@@ -1,0 +1,26 @@
+{
+  "type": "friend:fifth_type",
+  "generator": {
+    "type": "minecraft:flat",
+    "settings": {
+      "biome": "friend:fifth_mud_forest",
+      "features": false,
+      "lakes": false,
+      "layers": [
+        {
+          "block": "minecraft:bedrock",
+          "height": 1
+        },
+        {
+          "block": "minecraft:dirt",
+          "height": 9
+        },
+        {
+          "block": "minecraft:mud",
+          "height": 1
+        }
+      ],
+      "structure_overrides": []
+    }
+  }
+}

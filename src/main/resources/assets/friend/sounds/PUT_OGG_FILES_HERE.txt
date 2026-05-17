@@ -1,0 +1,18 @@
+Add the final legal OGG Vorbis files here:
+
+distant_stone_scrape.ogg
+distant_metal_hit.ogg
+quiet_breath.ogg
+window_knock_1.ogg
+window_knock_2.ogg
+wood_creak.ogg
+tunnel_step_1.ogg
+tunnel_step_2.ogg
+low_drone.ogg
+disappear_soft.ogg
+close_presence.ogg
+subtitle_near.ogg
+subtitle_heard.ogg
+subtitle_home.ogg
+
+Use CC0, royalty-free with redistribution rights, Sonniss GDC license-compatible clips, or self-recorded/self-generated audio.

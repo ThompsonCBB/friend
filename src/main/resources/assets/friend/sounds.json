@@ -1,0 +1,202 @@
+{
+  "distant_stone_scrape": {
+    "subtitle": "subtitle.friend.distant",
+    "sounds": ["friend:distant_stone_scrape"]
+  },
+  "distant_metal_hit": {
+    "subtitle": "subtitle.friend.distant",
+    "sounds": ["friend:distant_metal_hit"]
+  },
+  "quiet_breath": {
+    "subtitle": "subtitle.friend.breath",
+    "sounds": ["friend:quiet_breath"]
+  },
+  "window_knock_1": {
+    "subtitle": "subtitle.friend.window_knock",
+    "sounds": ["friend:window_knock_1"]
+  },
+  "window_knock_2": {
+    "subtitle": "subtitle.friend.window_knock",
+    "sounds": ["friend:window_knock_2"]
+  },
+  "wood_creak": {
+    "subtitle": "subtitle.friend.wood",
+    "sounds": ["friend:wood_creak"]
+  },
+  "tunnel_step_1": {
+    "subtitle": "subtitle.friend.step",
+    "sounds": ["friend:tunnel_step_1"]
+  },
+  "tunnel_step_2": {
+    "subtitle": "subtitle.friend.step",
+    "sounds": ["friend:tunnel_step_2"]
+  },
+  "low_drone": {
+    "subtitle": "subtitle.friend.dream",
+    "sounds": ["friend:low_drone"]
+  },
+  "disappear_soft": {
+    "subtitle": "subtitle.friend.disappear",
+    "sounds": ["friend:disappear_soft"]
+  },
+  "close_presence": {
+    "subtitle": "subtitle.friend.close",
+    "sounds": ["friend:close_presence"]
+  },
+  "friend_scream": {
+    "subtitle": "subtitle.friend.scream",
+    "sounds": ["friend:friend_scream"]
+  },
+  "distant_scrape": {
+    "subtitle": "subtitle.friend.distant",
+    "sounds": ["friend:distant_scrape"]
+  },
+  "window_knock": {
+    "subtitle": "subtitle.friend.window_knock",
+    "sounds": ["friend:window_knock"]
+  },
+  "window_press": {
+    "subtitle": "subtitle.friend.window_press",
+    "sounds": ["friend:window_press"]
+  },
+  "door_open_close": {
+    "subtitle": "subtitle.friend.wood",
+    "sounds": ["friend:door_open_close"]
+  },
+  "chest_open": {
+    "subtitle": "subtitle.friend.wood",
+    "sounds": ["friend:chest_open"]
+  },
+  "creak_step": {
+    "subtitle": "subtitle.friend.step",
+    "sounds": ["friend:creak_step"]
+  },
+  "joint_crack": {
+    "subtitle": "subtitle.friend.joint",
+    "sounds": ["friend:joint_crack"]
+  },
+  "low_breath": {
+    "subtitle": "subtitle.friend.breath",
+    "sounds": ["friend:low_breath"]
+  },
+  "attack_scream": {
+    "subtitle": "subtitle.friend.scream",
+    "sounds": [
+      {
+        "name": "friend:attack_scream",
+        "stream": true
+      }
+    ]
+  },
+  "final_scream": {
+    "subtitle": "subtitle.friend.scream",
+    "sounds": ["friend:final_scream"]
+  },
+  "cat_curse_roar": {
+    "subtitle": "subtitle.friend.cat_roar",
+    "sounds": ["friend:cat_curse_roar"]
+  },
+  "void_ambient": {
+    "subtitle": "subtitle.friend.void",
+    "sounds": ["friend:void_ambient"]
+  },
+  "dream_ambient": {
+    "subtitle": "subtitle.friend.dream",
+    "sounds": ["friend:dream_ambient"]
+  },
+  "red_light_buzz": {
+    "subtitle": "subtitle.friend.buzz",
+    "sounds": ["friend:red_light_buzz"]
+  },
+  "void_transition": {
+    "subtitle": "subtitle.friend.void_transition",
+    "sounds": ["friend:void_transition"]
+  },
+  "phase_shift": {
+    "subtitle": "subtitle.friend.phase_shift",
+    "sounds": ["friend:phase_shift"]
+  },
+  "subtitle_near": {
+    "subtitle": "subtitle.friend.near",
+    "sounds": ["friend:subtitle_near"]
+  },
+  "subtitle_heard": {
+    "subtitle": "subtitle.friend.heard",
+    "sounds": ["friend:subtitle_heard"]
+  },
+  "subtitle_home": {
+    "subtitle": "subtitle.friend.home",
+    "sounds": ["friend:subtitle_home"]
+  },
+  "white_grief_speech": {
+    "subtitle": "subtitle.friend.white_grief",
+    "sounds": [
+      {
+        "name": "friend:white_grief_speech",
+        "stream": true
+      }
+    ]
+  },
+  "white_grief_cry": {
+    "subtitle": "subtitle.friend.white_grief",
+    "sounds": [
+      {
+        "name": "friend:white_grief_cry"
+      }
+    ]
+  },
+  "cat_sin_background": {
+    "subtitle": "subtitle.friend.white_grief",
+    "sounds": [
+      {
+        "name": "friend:cat_sin_background",
+        "stream": true
+      }
+    ]
+  },
+  "final_sentence": {
+    "subtitle": "subtitle.friend.final_sentence",
+    "sounds": [
+      {
+        "name": "friend:final_sentence",
+        "stream": true
+      }
+    ]
+  },
+  "mine_throat_clicks": {
+    "subtitle": "subtitle.friend.mine_presence",
+    "sounds": [
+      {
+        "name": "friend:mine_throat_clicks",
+        "stream": true
+      }
+    ]
+  },
+  "mine_wall_scrape": {
+    "subtitle": "subtitle.friend.mine_presence",
+    "sounds": [
+      {
+        "name": "friend:mine_wall_scrape",
+        "stream": true
+      }
+    ]
+  },
+  "mine_distant_scream": {
+    "subtitle": "subtitle.friend.mine_presence",
+    "sounds": [
+      {
+        "name": "friend:mine_distant_scream",
+        "stream": true
+      }
+    ]
+  },
+  "mine_crawl": {
+    "subtitle": "subtitle.friend.mine_presence",
+    "sounds": [
+      {
+        "name": "friend:mine_crawl",
+        "stream": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,125 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'maven-publish'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+}
+
+version = '1.0.0'
+group = 'com.doxbi.friend'
+
+base {
+    archivesName = 'friend'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+}
+
+minecraft {
+    mappings channel: 'official', version: '1.20.1'
+
+    runs {
+        configureEach {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+            mods {
+                friend {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        client {
+            property 'forge.enabledGameTestNamespaces', 'friend'
+        }
+
+        server {
+            property 'forge.enabledGameTestNamespaces', 'friend'
+            args '--nogui'
+        }
+
+        data {
+            workingDirectory project.file('run-data')
+            args '--mod', 'friend', '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
+        }
+    }
+}
+
+sourceSets.main.resources {
+    srcDir 'src/generated/resources'
+}
+
+configurations {
+    distributionMods
+}
+
+repositories {
+    maven {
+        url = 'https://cursemaven.com'
+        content {
+            includeGroup 'curse.maven'
+        }
+    }
+}
+
+dependencies {
+    minecraft 'net.minecraftforge:forge:1.20.1-47.3.11'
+    implementation fg.deobf('curse.maven:geckolib-388172:5675221')
+    implementation fg.deobf('curse.maven:smartbrainlib-661293:5509524')
+    distributionMods 'curse.maven:geckolib-388172:5675221'
+    distributionMods 'curse.maven:smartbrainlib-661293:5509524'
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [
+            minecraft_version      : '1.20.1',
+            minecraft_version_range: '[1.20.1,1.21)',
+            forge_version          : '47.3.11',
+            forge_version_range    : '[47.3.11,)',
+            loader_version_range   : '[47,)',
+            mod_id                 : 'friend',
+            mod_name               : 'friend',
+            mod_license            : 'All Rights Reserved',
+            mod_version            : project.version,
+            mod_authors            : 'leryn13',
+            mod_display_url        : 'https://www.curseforge.com/members/leryn13',
+            mod_description        : 'A psychological observer horror mod. Friend watches before it acts.'
+    ]
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties + [project: project]
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                'Specification-Title'     : 'friend',
+                'Specification-Vendor'    : 'leryn13',
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Vendor'   : 'leryn13',
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
+    }
+}
+
+tasks.register('copyRequiredMods', Copy) {
+    from configurations.distributionMods
+    into layout.buildDirectory.dir('libs')
+    rename { name ->
+        def lower = name.toLowerCase(Locale.ROOT)
+        if (lower.contains('geckolib')) return 'geckolib-forge-1.20.1-4.4.9.jar'
+        if (lower.contains('smartbrainlib')) return 'SmartBrainLib-forge-1.20.1-1.14.1.jar'
+        return name
+    }
+}
+
+tasks.named('build') {
+    finalizedBy tasks.named('copyRequiredMods')
+}

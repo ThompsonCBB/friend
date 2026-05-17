@@ -1,0 +1,30 @@
+{
+  "type": "friend:dream_type",
+  "generator": {
+    "type": "minecraft:flat",
+    "settings": {
+      "biome": "friend:dream_field",
+      "features": false,
+      "lakes": false,
+      "layers": [
+        {
+          "block": "minecraft:bedrock",
+          "height": 1
+        },
+        {
+          "block": "minecraft:dirt",
+          "height": 9
+        },
+        {
+          "block": "minecraft:farmland",
+          "height": 1
+        },
+        {
+          "block": "minecraft:wheat",
+          "height": 1
+        }
+      ],
+      "structure_overrides": []
+    }
+  }
+}

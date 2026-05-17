@@ -1,0 +1,112 @@
+﻿.gitignore
+ASSET_SOURCES.md
+build.gradle
+gradle.properties
+README.md
+settings.gradle
+src\main\java\com\doxbi\friend\FriendMod.java
+src\main\java\com\doxbi\friend\client\FriendClientEvents.java
+src\main\java\com\doxbi\friend\client\FriendClientForgeEvents.java
+src\main\java\com\doxbi\friend\client\FriendClientSounds.java
+src\main\java\com\doxbi\friend\client\FriendMineHorrorSoundManager.java
+src\main\java\com\doxbi\friend\client\model\FriendModel.java
+src\main\java\com\doxbi\friend\client\renderer\FriendRenderer.java
+src\main\java\com\doxbi\friend\config\FriendConfig.java
+src\main\java\com\doxbi\friend\entity\FriendEntity.java
+src\main\java\com\doxbi\friend\entity\ai\FriendMovementController.java
+src\main\java\com\doxbi\friend\event\FriendAttributes.java
+src\main\java\com\doxbi\friend\event\FriendDebugPeekService.java
+src\main\java\com\doxbi\friend\event\FriendDirector.java
+src\main\java\com\doxbi\friend\event\FriendPeekCommandResult.java
+src\main\java\com\doxbi\friend\event\PeekCommandMode.java
+src\main\java\com\doxbi\friend\registry\FriendEntityTypes.java
+src\main\java\com\doxbi\friend\registry\FriendSoundEvents.java
+src\main\java\com\doxbi\friend\stalking\CoverCandidate.java
+src\main\java\com\doxbi\friend\stalking\CoverType.java
+src\main\java\com\doxbi\friend\stalking\FriendCoverQuery.java
+src\main\java\com\doxbi\friend\stalking\FriendPerception.java
+src\main\java\com\doxbi\friend\stalking\FriendStalkingDirector.java
+src\main\java\com\doxbi\friend\stalking\FriendStalkingMemory.java
+src\main\java\com\doxbi\friend\stalking\FriendStalkingState.java
+src\main\java\com\doxbi\friend\stalking\MineActivityType.java
+src\main\java\com\doxbi\friend\stalking\MineContextAdapter.java
+src\main\java\com\doxbi\friend\stalking\MineContextSnapshot.java
+src\main\java\com\doxbi\friend\stalking\MineEnvironmentType.java
+src\main\java\com\doxbi\friend\stalking\MinePeekAdapter.java
+src\main\java\com\doxbi\friend\stalking\MinePeekAnchorType.java
+src\main\java\com\doxbi\friend\stalking\MineShortTermMemory.java
+src\main\java\com\doxbi\friend\stalking\PeekSide.java
+src\main\java\com\doxbi\friend\stalking\PlayerEnvironmentContext.java
+src\main\java\com\doxbi\friend\world\FriendDimensions.java
+src\main\resources\pack.mcmeta
+src\main\resources\assets\friend\sounds.json
+src\main\resources\assets\friend\animations\friend.animation.json
+src\main\resources\assets\friend\geo\friend.geo.json
+src\main\resources\assets\friend\lang\en_us.json
+src\main\resources\assets\friend\lang\ru_ru.json
+src\main\resources\assets\friend\sounds\attack_scream.ogg
+src\main\resources\assets\friend\sounds\cat_curse_roar.ogg
+src\main\resources\assets\friend\sounds\cat_sin_background.ogg
+src\main\resources\assets\friend\sounds\chest_open.ogg
+src\main\resources\assets\friend\sounds\close_presence.ogg
+src\main\resources\assets\friend\sounds\creak_step.ogg
+src\main\resources\assets\friend\sounds\disappear_soft.ogg
+src\main\resources\assets\friend\sounds\distant_metal_hit.ogg
+src\main\resources\assets\friend\sounds\distant_scrape.ogg
+src\main\resources\assets\friend\sounds\distant_stone_scrape.ogg
+src\main\resources\assets\friend\sounds\door_open_close.ogg
+src\main\resources\assets\friend\sounds\dream_ambient.ogg
+src\main\resources\assets\friend\sounds\final_scream.ogg
+src\main\resources\assets\friend\sounds\final_sentence.ogg
+src\main\resources\assets\friend\sounds\friend_scream.ogg
+src\main\resources\assets\friend\sounds\joint_crack.ogg
+src\main\resources\assets\friend\sounds\low_breath.ogg
+src\main\resources\assets\friend\sounds\low_drone.ogg
+src\main\resources\assets\friend\sounds\mine_crawl.ogg
+src\main\resources\assets\friend\sounds\mine_distant_scream.ogg
+src\main\resources\assets\friend\sounds\mine_throat_clicks.ogg
+src\main\resources\assets\friend\sounds\mine_wall_scrape.ogg
+src\main\resources\assets\friend\sounds\phase_shift.ogg
+src\main\resources\assets\friend\sounds\PUT_OGG_FILES_HERE.txt
+src\main\resources\assets\friend\sounds\quiet_breath.ogg
+src\main\resources\assets\friend\sounds\red_light_buzz.ogg
+src\main\resources\assets\friend\sounds\subtitle_heard.ogg
+src\main\resources\assets\friend\sounds\subtitle_home.ogg
+src\main\resources\assets\friend\sounds\subtitle_near.ogg
+src\main\resources\assets\friend\sounds\tunnel_step_1.ogg
+src\main\resources\assets\friend\sounds\tunnel_step_2.ogg
+src\main\resources\assets\friend\sounds\void_ambient.ogg
+src\main\resources\assets\friend\sounds\void_transition.ogg
+src\main\resources\assets\friend\sounds\white_grief_cry.ogg
+src\main\resources\assets\friend\sounds\white_grief_speech.ogg
+src\main\resources\assets\friend\sounds\window_knock.ogg
+src\main\resources\assets\friend\sounds\window_knock_1.ogg
+src\main\resources\assets\friend\sounds\window_knock_2.ogg
+src\main\resources\assets\friend\sounds\window_press.ogg
+src\main\resources\assets\friend\sounds\wood_creak.ogg
+src\main\resources\assets\friend\textures\entity\friend.png
+src\main\resources\assets\friend\textures\entity\friend_white.png
+src\main\resources\assets\friend\textures\item\friend_icon.png
+src\main\resources\assets\friend\textures\particle\friend_dark_particle.png
+src\main\resources\data\friend\advancements\crime_and_punishment.json
+src\main\resources\data\friend\advancements\no_more_running.json
+src\main\resources\data\friend\advancements\the_end.json
+src\main\resources\data\friend\dimension\dream.json
+src\main\resources\data\friend\dimension\fifth_dimension.json
+src\main\resources\data\friend\dimension\paradise.json
+src\main\resources\data\friend\dimension\sky.json
+src\main\resources\data\friend\dimension\void.json
+src\main\resources\META-INF\mods.toml
+Звуки\Горловые щелчки.mp3
+Звуки\Дыхание вдали.mp3
+Звуки\Крик в шахте.mp3
+Звуки\Крик самого монстра.mp3
+Звуки\Начало секретной фазы.mp3
+Звуки\Открывание сундука.mp3
+Звуки\Открытие и закрытие двери.mp3
+Звуки\Плач.ogg
+Звуки\Пробежал кто-то.mp3
+Звуки\Стучание по окну.mp3
+Звуки\Фоновый звук.mp3
+Звуки\Шаги по бетону.mp3
+Звуки\Шаги по дереву.mp3
