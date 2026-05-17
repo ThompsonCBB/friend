@@ -2392,10 +2392,6 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         tag.putInt(FriendEntity.TAG_COVER_Z, cover.getZ());
         tag.putInt(FriendEntity.TAG_PEEK_PANIC_TICKS, 0);
         tag.putString(PEEK_MODE, mode);
-        if (eventId.equals("corner_peek") && mode.equals("bold") && shouldEscalateCornerPeek(data)) {
-            friend.setCornerEscalated(true);
-            tag.putInt(FriendEntity.TAG_LIFETIME, 20 * 80);
-        }
         facePlayer(friend, player);
         level.addFreshEntity(friend);
         data.putBoolean(ACTIVE, true);
@@ -3664,24 +3660,10 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         CompoundTag tag = friend.getPersistentData();
 
         if (friend.cornerEscalated()) {
-            CompoundTag data = state(player);
-            long now = level.getGameTime();
-
-            // Peek-to-attack is still a real attack. It must obey the same hard cooldown as normal attacks,
-            // otherwise a seen peek can instantly bypass the cooldown and cause back-to-back rushes.
-            if (!attackCooldownReady(data, now)) {
-                friend.setCornerEscalated(false);
-                disappear(friend, "peek_attack_on_cooldown", true);
-                return true;
-            }
-            if (!tag.getBoolean("friend_peek_attack_cooldown_started")) {
-                beginAttackCooldown(data, now, true);
-                tag.putBoolean("friend_peek_attack_cooldown_started", true);
-                tag.putLong("friend_attack_started_at", now);
-                applyAttackIntroDarkness(player);
-            }
-            handleControlledAttack(level, player, friend, distance, true);
-            return true;
+            // Peek events are not allowed to turn into attacks just because the player approached or noticed Friend.
+            // A real attack must come from attack_emerge/false_attack, not from the peek controller.
+            friend.setCornerEscalated(false);
+            tag.putBoolean("friend_peek_attack_cooldown_started", false);
         }
         BlockPos cover = new BlockPos(tag.getInt(FriendEntity.TAG_COVER_X), tag.getInt(FriendEntity.TAG_COVER_Y), tag.getInt(FriendEntity.TAG_COVER_Z));
         if ((!isHolePeekEvent(event) && !isLowCeilingPeekEvent(event) && !isCoverBlock(level, cover))
@@ -3808,7 +3790,7 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
             if (isEntityPinned(level, friend) && !controlledRelocate(level, friend, player)) {
                 freeSelfFromBlocks(level, friend, player, 1);
             }
-            chaseMove(level, friend, player, speed, true, friend.rage() ? 2 : 1);
+            chaseMove(level, friend, player, speed, FriendConfig.ENABLE_BLOCK_DESTRUCTION.get(), friend.rage() ? 2 : 1);
             facePlayer(friend, player);
             if (level.getGameTime() % 12L == 0L) {
                 play(level, friend.blockPosition(), RANDOM.nextBoolean() ? FriendSoundEvents.CREAK_STEP : FriendSoundEvents.JOINT_CRACK, 0.38F, 0.55F, 0.82F);
@@ -4086,10 +4068,10 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         friend.noPhysics = false;
         friend.setNoGravity(false);
         friend.setNoAi(false);
-        friend.setMaxUpStep(1.18F);
+        friend.setMaxUpStep(1.65F);
         var attribute = friend.getAttribute(Attributes.MOVEMENT_SPEED);
         if (attribute != null) {
-            attribute.setBaseValue(Mth.clamp(speed, 0.20D, friend.rage() ? 0.54D : 0.46D));
+            attribute.setBaseValue(Mth.clamp(speed, 0.28D, friend.rage() ? 1.10D : 0.92D));
         }
     }
 

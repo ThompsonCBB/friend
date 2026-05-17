@@ -37,12 +37,12 @@ public class FriendEntity extends PathfinderMob implements GeoEntity {
             SynchedEntityData.defineId(FriendEntity.class, EntityDataSerializers.STRING);
 
     private static final RawAnimation IDLE_ANIM = RawAnimation.begin().thenLoop("animation.friend.idle_stare");
-    private static final RawAnimation PEEK_SLOW_ANIM = RawAnimation.begin().thenPlay("animation.friend.peek");
-    private static final RawAnimation HAND_PEEK_ANIM = RawAnimation.begin().thenPlay("animation.friend.hand_first_peek");
-    private static final RawAnimation CEILING_HOLE_PEEK_ANIM = RawAnimation.begin().thenPlay("animation.friend.ceiling_hole_peek");
-    private static final RawAnimation FLOOR_HOLE_PEEK_ANIM = RawAnimation.begin().thenPlay("animation.friend.floor_hole_peek");
-    private static final RawAnimation LOW_CEILING_2_PEEK_ANIM = RawAnimation.begin().thenPlay("animation.friend.low_ceiling_2_peek");
-    private static final RawAnimation LOW_CEILING_1_PEEK_ANIM = RawAnimation.begin().thenPlay("animation.friend.low_ceiling_1_peek");
+    private static final RawAnimation PEEK_SLOW_ANIM = RawAnimation.begin().thenLoop("animation.friend.peek");
+    private static final RawAnimation HAND_PEEK_ANIM = RawAnimation.begin().thenLoop("animation.friend.hand_first_peek");
+    private static final RawAnimation CEILING_HOLE_PEEK_ANIM = RawAnimation.begin().thenLoop("animation.friend.ceiling_hole_peek");
+    private static final RawAnimation FLOOR_HOLE_PEEK_ANIM = RawAnimation.begin().thenLoop("animation.friend.floor_hole_peek");
+    private static final RawAnimation LOW_CEILING_2_PEEK_ANIM = RawAnimation.begin().thenLoop("animation.friend.low_ceiling_2_peek");
+    private static final RawAnimation LOW_CEILING_1_PEEK_ANIM = RawAnimation.begin().thenLoop("animation.friend.low_ceiling_1_peek");
     private static final RawAnimation ATTACK_EMERGE_ANIM = RawAnimation.begin()
             .thenPlay("animation.friend.attack_emerge")
             .thenLoop("animation.friend.attack_hold");
@@ -387,7 +387,7 @@ public class FriendEntity extends PathfinderMob implements GeoEntity {
         return switch (event) {
             case "stalk_slip_left" -> RawAnimation.begin().thenPlay("animation.friend.slip_left");
             case "stalk_slip_right" -> RawAnimation.begin().thenPlay("animation.friend.slip_right");
-            default -> RawAnimation.begin().thenPlay(FriendStalkingDirector.animationName(event));
+            default -> RawAnimation.begin().thenLoop(FriendStalkingDirector.animationName(event));
         };
     }
 

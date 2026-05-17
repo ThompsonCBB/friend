@@ -23,10 +23,10 @@ public final class FriendConfig {
         ENABLE_DREAMS = builder.comment("Allow nightmare corridor events.").define("enableDreams", true);
         ENABLE_VOID = builder.comment("Allow the cat curse ending dimension.").define("enableVoid", true);
         ENABLE_CAT_CURSE = builder.comment("Enable secret phase after killing a cat.").define("enableCatCurse", true);
-        ENABLE_BLOCK_DESTRUCTION = builder.comment("Allow Friend to break blocks only during the secret phase.").define("enableBlockDestruction", true);
+        ENABLE_BLOCK_DESTRUCTION = builder.comment("Allow Friend to break only player-placed anti-abuse blocks during chase logic.").define("enableBlockDestruction", true);
         EVENT_FREQUENCY_MULTIPLIER = builder.comment("Lower values make ambient events more frequent.").defineInRange("eventFrequencyMultiplier", 1.0D, 0.1D, 10.0D);
         ATTACK_FREQUENCY_MULTIPLIER = builder.comment("Lower values make controlled attacks more frequent.").defineInRange("attackFrequencyMultiplier", 1.0D, 0.1D, 10.0D);
-        FRIEND_SPEED_MULTIPLIER = builder.comment("Multiplier for Friend chase speed. 1.0 = old speed, 0.75 = slower, 1.25 = faster.").defineInRange("friendSpeedMultiplier", 0.78D, 0.25D, 2.0D);
+        FRIEND_SPEED_MULTIPLIER = builder.comment("Multiplier for Friend chase speed. 1.0 = normal fast chase, 0.75 = slower, 1.25 = faster.").defineInRange("friendSpeedMultiplier", 1.12D, 0.25D, 2.0D);
         DEBUG_MODE = builder.comment("Extra actionbar/status hints for testing.").define("debugMode", false);
         SUBTLE_MODE = builder.comment("Keeps normal hauntings quieter and rarer. Secret phase ignores this.").define("subtleMode", false);
         builder.pop();

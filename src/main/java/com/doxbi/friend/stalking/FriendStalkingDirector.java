@@ -179,27 +179,8 @@ public final class FriendStalkingDirector {
     }
 
     private static boolean spotted(ServerLevel level, ServerPlayer player, FriendEntity friend, CompoundTag data, CoverType type, double fraction) {
+        // A peek being noticed must stay a peek: it should retreat, not convert into a cheap attack.
         FriendStalkingMemory.spotted(data);
-        int phase = Math.max(1, data.getInt(PHASE));
-        boolean rage = data.getBoolean(RAGE);
-        long now = level.getGameTime();
-        boolean attackReady = rage || now >= data.getLong("friend_attack_lock_until");
-        double chance = phase >= 4 ? 0.18D : phase >= 3 ? 0.08D : 0.0D;
-        if (attackReady && (rage || (fraction > 0.22D && RANDOM.nextDouble() < chance))) {
-            friend.setEventId("attack_emerge");
-            friend.setCornerEscalated(true);
-            friend.getPersistentData().putInt(FriendEntity.TAG_LIFETIME, 20 * 80);
-            if (!rage) {
-                int cooldown = 20 * (360 + RANDOM.nextInt(121));
-                data.putLong("friend_last_attack_time", now);
-                data.putLong("friend_attack_lock_until", now + cooldown);
-                data.putLong(EVENT_COOLDOWN, Math.max(data.getLong(EVENT_COOLDOWN), now + cooldown));
-            }
-            level.playSound(null, friend.blockPosition(), FriendSoundEvents.LOW_BREATH.get(), SoundSource.HOSTILE, 0.26F, 0.62F);
-            FriendStalkingMemory.setDebugSummary(data, FriendStalkingState.CHASE_TRANSITION,
-                    FriendCoverQuery.detectContext(level, player, data), null, 0, "attack_emerge", "spotted_reveal");
-            return true;
-        }
         slipBehind(level, player, friend, data, type.name().toLowerCase(Locale.ROOT) + "_spotted");
         return true;
     }
@@ -208,10 +189,12 @@ public final class FriendStalkingDirector {
         String side = friend.getPersistentData().getString("friend_peek_side");
         friend.setEventId("RIGHT".equals(side) ? "stalk_slip_right" : "stalk_slip_left");
         friend.getPersistentData().putInt(FriendEntity.TAG_LIFETIME, 16);
-        Vec3 away = friend.position().subtract(player.position()).multiply(1.0D, 0.0D, 1.0D);
-        if (away.lengthSqr() > 0.001D) {
-            friend.setDeltaMovement(away.normalize().scale(0.18D));
-        }
+
+        // Do not push the real entity backwards. The retreat is visual-only through the animation,
+        // otherwise Friend looks like he is flying away from the cover.
+        friend.getNavigation().stop();
+        friend.setDeltaMovement(Vec3.ZERO);
+
         FriendStalkingMemory.setDebugSummary(data, FriendStalkingState.SLIPPING_BEHIND,
                 FriendCoverQuery.detectContext(level, player, data), null, 0, side, reason);
         level.playSound(null, friend.blockPosition(), FriendSoundEvents.DISAPPEAR_SOFT.get(), SoundSource.AMBIENT, 0.10F, 0.72F + RANDOM.nextFloat() * 0.18F);
