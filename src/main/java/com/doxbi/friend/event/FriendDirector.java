@@ -566,12 +566,16 @@ public final class FriendDirector {
                         .then(Commands.literal("peek").executes(ctx -> {
                             ServerPlayer player = ctx.getSource().getPlayerOrException();
                             cleanupOwnedFriends(player.serverLevel(), player);
-                            boolean ok = FriendStalkingDirector.tryStart(player.serverLevel(), player, state(player), "corner");
+                            CompoundTag data = state(player);
+                            boolean ok = spawnCornerPeek(player.serverLevel(), player, data, "corner_peek");
+                            if (!ok) {
+                                ok = FriendStalkingDirector.tryStart(player.serverLevel(), player, data, "corner");
+                            }
                             if (ok) {
-                                ctx.getSource().sendSuccess(() -> Component.literal("Friend peek/stand spawned | " + FriendStalkingDirector.debugStatus(state(player))), false);
+                                ctx.getSource().sendSuccess(() -> Component.literal("Friend peek spawned | " + FriendStalkingDirector.debugStatus(data)), false);
                                 return 1;
                             }
-                            ctx.getSource().sendFailure(Component.literal("Friend peek failed after fallback search | " + FriendStalkingDirector.debugStatus(state(player))));
+                            ctx.getSource().sendFailure(Component.literal("Friend peek failed after fallback search | " + FriendStalkingDirector.debugStatus(data)));
                             return 0;
                         }))
                         .then(Commands.literal("stand").executes(ctx -> {
@@ -588,7 +592,11 @@ public final class FriendDirector {
                         .then(Commands.literal("attack").executes(ctx -> {
                             ServerPlayer player = ctx.getSource().getPlayerOrException();
                             cleanupOwnedFriends(player.serverLevel(), player);
-                            boolean ok = spawnAttack(player.serverLevel(), player, state(player));
+                            CompoundTag data = state(player);
+                            data.putLong(ATTACK_LOCK_UNTIL, 0L);
+                            data.putLong(LAST_ATTACK_TIME, 0L);
+                            data.putLong(FIRST_ATTACK_GRACE_UNTIL, 0L);
+                            boolean ok = spawnAttack(player.serverLevel(), player, data);
                             if (ok) {
                                 ctx.getSource().sendSuccess(() -> Component.literal("Friend attack spawned"), false);
                                 return 1;
@@ -2508,6 +2516,8 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         }
         look = look.normalize();
         Vec3 side = new Vec3(-look.z, 0.0D, look.x).normalize();
+
+        // First try cinematic front/side positions.
         for (int i = 0; i < 80; i++) {
             double forward = 8.0D + RANDOM.nextInt(14);
             double lateral = (RANDOM.nextBoolean() ? 1.0D : -1.0D) * RANDOM.nextInt(7);
@@ -2517,12 +2527,33 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
                 return Optional.of(feet.immutable());
             }
         }
+
+        // Then try cardinal directions.
         for (Direction direction : Direction.Plane.HORIZONTAL) {
             BlockPos feet = findFloor(level, player.blockPosition().relative(direction, 10));
             if (feet != null && isValid(level, player, feet, "attack_emerge", 7)) {
                 return Optional.of(feet.immutable());
             }
         }
+
+        // Final command/survival fallback: do not fail just because cover logic found no perfect corner.
+        // This is only a spawn fallback; it still requires safe standing space and avoids hazards.
+        for (int i = 0; i < 96; i++) {
+            double angle = RANDOM.nextDouble() * Math.PI * 2.0D;
+            double distance = 7.0D + RANDOM.nextDouble() * 11.0D;
+            BlockPos rough = BlockPos.containing(player.getX() + Math.cos(angle) * distance,
+                    player.getY() + RANDOM.nextInt(9) - 4,
+                    player.getZ() + Math.sin(angle) * distance);
+            BlockPos feet = findFloor(level, rough);
+            if (feet == null || !level.hasChunkAt(feet) || !hasFriendStandingSpace(level, feet)) {
+                continue;
+            }
+            if (bad(level, feet) || bad(level, feet.below()) || feet.distSqr(player.blockPosition()) < 6.0D * 6.0D) {
+                continue;
+            }
+            return Optional.of(feet.immutable());
+        }
+
         return Optional.empty();
     }
 
@@ -3766,6 +3797,7 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
             return;
         }
 
+        player.removeEffect(MobEffects.DARKNESS);
         playAttackScream(level, player, friend, true);
         drainChaseLights(level, friend, 10);
         scareMobsAroundFriend(level, friend, 40.0D);
@@ -5882,7 +5914,8 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         addBookPage(pages, "Dreams are short for a reason.\nA field. A door. Daylight that feels wrong.\n\nDo not stay to understand it.\nThat place is not a puzzle.\nIt is a pause before something decides what you are.");
         addBookPage(pages, "If it knocks, wait.\nIf a torch goes out behind you, do not turn immediately.\nIf you hear your own steps continue after you stop,\nleave the mine.");
         addBookPage(pages, "It is called Friend.\n\nNot because it protects you.\nNot because it forgives you.\n\nBecause after enough nights, every other sound in the world starts to feel less honest.");
-        tag.putString("title", "Rules for the Thing Called Friend");
+        tag.putString("title", "Rules for Friend");
+        tag.putBoolean("resolved", true);
         tag.putString("author", "Unknown");
         tag.put("pages", pages);
         book.setTag(tag);
@@ -5895,8 +5928,9 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         CompoundTag tag = new CompoundTag();
         ListTag pages = new ListTag();
         addBookPage(pages, text);
-        tag.putString("title", title);
+        tag.putString("title", safeBookTitle(title));
         tag.putString("author", "Friend");
+        tag.putBoolean("resolved", true);
         tag.put("pages", pages);
         book.setTag(tag);
         if (!player.getInventory().add(book)) {
@@ -6097,8 +6131,15 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
                 .orElse("-");
     }
 
+    private static String safeBookTitle(String title) {
+        if (title == null || title.isBlank()) {
+            return "Friend";
+        }
+        return title.length() > 32 ? title.substring(0, 32) : title;
+    }
+
     private static void addBookPage(ListTag pages, String text) {
-        pages.add(StringTag.valueOf(Component.Serializer.toJson(Component.literal(text))));
+        pages.add(StringTag.valueOf(Component.Serializer.toJson(Component.literal(text == null ? "" : text))));
     }
 
     private static CompoundTag state(ServerPlayer player) {
