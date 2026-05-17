@@ -1,4 +1,5 @@
 # friend
+<<<<<<< HEAD
 
 Forge 1.20.1 psychological horror mod.
 
@@ -36,3 +37,6 @@ Operator-only:
 The included texture is a generated placeholder designed around the mask-face concept. Replace it with final Blockbench texture art before release if you want a more polished model.
 
 The included OGG files are original synthesized placeholder sounds generated for this project, so they are legal to ship as placeholders. For a stronger final release, replace them with self-recorded or properly licensed CC0/royalty-free sounds. See `ASSET_SOURCES.md`.
+=======
+Psychological horror mod for Minecraft Forge 1.20.1 focused on stalking, environmental fear and adaptive AI behavior. Friend watches the player, hides in caves, suppresses lights, performs dynamic peek events and becomes more aggressive over time instead of relying on constant cheap attacks.
+>>>>>>> bf1ffa314f66d8f299ada01ca68c45fc4abcf477
