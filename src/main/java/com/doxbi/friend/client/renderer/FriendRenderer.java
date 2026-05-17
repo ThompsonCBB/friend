@@ -6,7 +6,6 @@ import com.doxbi.friend.entity.FriendEntity;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;
 import software.bernie.geckolib.renderer.GeoEntityRenderer;
-import software.bernie.geckolib.renderer.layer.AutoGlowingGeoLayer;
 
 public class FriendRenderer extends GeoEntityRenderer<FriendEntity> {
     private static final ResourceLocation TEXTURE =
@@ -17,7 +16,6 @@ public class FriendRenderer extends GeoEntityRenderer<FriendEntity> {
     public FriendRenderer(EntityRendererProvider.Context context) {
         super(context, new FriendModel());
         this.shadowRadius = 0.42F;
-        this.addRenderLayer(new AutoGlowingGeoLayer<>(this));
     }
 
     @Override

@@ -567,7 +567,7 @@ public final class FriendDirector {
                             ServerPlayer player = ctx.getSource().getPlayerOrException();
                             cleanupOwnedFriends(player.serverLevel(), player);
                             CompoundTag data = state(player);
-                            boolean ok = spawnCornerPeek(player.serverLevel(), player, data, "corner_peek");
+                            boolean ok = spawnCornerPeek(player.serverLevel(), player, data, "corner_peek", true);
                             if (!ok) {
                                 ok = FriendStalkingDirector.tryStart(player.serverLevel(), player, data, "corner");
                             }
@@ -601,7 +601,7 @@ public final class FriendDirector {
                                 ctx.getSource().sendSuccess(() -> Component.literal("Friend attack spawned"), false);
                                 return 1;
                             }
-                            ctx.getSource().sendFailure(Component.literal("Friend attack failed"));
+                            ctx.getSource().sendFailure(Component.literal("Friend attack failed | " + data.getString(LAST_PATH_TYPE)));
                             return 0;
                         }))
                         .then(Commands.literal("roar").executes(ctx -> {
@@ -2348,6 +2348,10 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
     }
 
     private static boolean spawnCornerPeek(ServerLevel level, ServerPlayer player, CompoundTag data, String eventId) {
+        return spawnCornerPeek(level, player, data, eventId, false);
+    }
+
+    private static boolean spawnCornerPeek(ServerLevel level, ServerPlayer player, CompoundTag data, String eventId, boolean forcedDebugHold) {
         String mode = choosePeekMode(data);
         Optional<PeekSpot> spot = findCornerPeekSpot(level, player, data, data.getInt(PHASE), mode);
 
@@ -2377,7 +2381,7 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         }
         BlockPos feet = spot.get().feet();
         friend.moveTo(feet.getX() + 0.5D, feet.getY(), feet.getZ() + 0.5D, 0.0F, 0.0F);
-        int lifetime = switch (mode) {
+        int lifetime = forcedDebugHold ? 20 * 10 : switch (mode) {
             case "turnaround" -> seconds(7, 12);
             case "bold" -> seconds(8, 14);
             default -> seconds(4, 7);
@@ -2392,6 +2396,11 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         tag.putInt(FriendEntity.TAG_COVER_Z, cover.getZ());
         tag.putInt(FriendEntity.TAG_PEEK_PANIC_TICKS, 0);
         tag.putString(PEEK_MODE, mode);
+        if (forcedDebugHold) {
+            tag.putBoolean("friend_command_peek", true);
+            tag.putLong("friend_command_peek_until", level.getGameTime() + 20L * 7L);
+            friend.startDebugForcedPeek(20 * 7);
+        }
         facePlayer(friend, player);
         level.addFreshEntity(friend);
         data.putBoolean(ACTIVE, true);
@@ -2448,6 +2457,10 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
             pos = findForcedAttackStartPosition(level, player);
         }
         if (pos.isEmpty()) {
+            pos = findEmergencyAttackStartPosition(level, player);
+        }
+        if (pos.isEmpty()) {
+            data.putString(LAST_PATH_TYPE, "attack_spawn_failed_no_safe_space");
             return false;
         }
         FriendEntity friend = FriendEntityTypes.FRIEND.get().create(level);
@@ -2551,6 +2564,76 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         }
 
         return Optional.empty();
+    }
+
+
+    private static Optional<BlockPos> findEmergencyAttackStartPosition(ServerLevel level, ServerPlayer player) {
+        Vec3 look = player.getLookAngle().multiply(1.0D, 0.0D, 1.0D);
+        if (look.lengthSqr() < 0.001D) {
+            look = new Vec3(0.0D, 0.0D, 1.0D);
+        }
+        look = look.normalize();
+
+        Vec3 side = new Vec3(-look.z, 0.0D, look.x);
+        if (side.lengthSqr() < 0.001D) {
+            side = new Vec3(1.0D, 0.0D, 0.0D);
+        }
+        side = side.normalize();
+
+        double[] distances = {7.0D, 9.0D, 11.0D, 13.0D, 15.0D, 18.0D};
+        double[] laterals = {0.0D, 2.5D, -2.5D, 5.0D, -5.0D, 8.0D, -8.0D};
+
+        for (double distance : distances) {
+            for (double lateral : laterals) {
+                Vec3 target = player.position().add(look.scale(distance)).add(side.scale(lateral));
+                Optional<BlockPos> found = safeAttackFloorNear(level, player, BlockPos.containing(target));
+                if (found.isPresent()) {
+                    return found;
+                }
+            }
+        }
+
+        for (Direction direction : Direction.Plane.HORIZONTAL) {
+            for (int distance = 7; distance <= 18; distance += 2) {
+                Optional<BlockPos> found = safeAttackFloorNear(level, player, player.blockPosition().relative(direction, distance));
+                if (found.isPresent()) {
+                    return found;
+                }
+            }
+        }
+
+        for (int radius = 7; radius <= 18; radius += 2) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
+                        continue;
+                    }
+                    Optional<BlockPos> found = safeAttackFloorNear(level, player, player.blockPosition().offset(dx, 0, dz));
+                    if (found.isPresent()) {
+                        return found;
+                    }
+                }
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private static Optional<BlockPos> safeAttackFloorNear(ServerLevel level, ServerPlayer player, BlockPos rough) {
+        BlockPos feet = findSafeFriendFloor(level, rough);
+        if (feet == null) {
+            feet = findFloor(level, rough);
+        }
+        if (feet == null || !level.hasChunkAt(feet)) {
+            return Optional.empty();
+        }
+        if (feet.distSqr(player.blockPosition()) < 5.0D * 5.0D) {
+            return Optional.empty();
+        }
+        if (!hasFriendStandingSpace(level, feet)) {
+            return Optional.empty();
+        }
+        return Optional.of(feet.immutable());
     }
 
     private static boolean spawnCatCurseChaser(ServerLevel level, ServerPlayer player, CompoundTag data) {
@@ -3666,6 +3749,17 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
             tag.putBoolean("friend_peek_attack_cooldown_started", false);
         }
         BlockPos cover = new BlockPos(tag.getInt(FriendEntity.TAG_COVER_X), tag.getInt(FriendEntity.TAG_COVER_Y), tag.getInt(FriendEntity.TAG_COVER_Z));
+
+        // Debug/command peek must be readable. Without this, the command spawns Friend directly in view,
+        // the sight check fires immediately, and the animation looks like a 1-second twitch.
+        if (friend.isDebugForcedPeekActive() || level.getGameTime() < tag.getLong("friend_command_peek_until")) {
+            friend.getNavigation().stop();
+            friend.setDeltaMovement(Vec3.ZERO);
+            facePlayer(friend, player);
+            tag.putInt(FriendEntity.TAG_PEEK_PANIC_TICKS, 0);
+            return true;
+        }
+
         if ((!isHolePeekEvent(event) && !isLowCeilingPeekEvent(event) && !isCoverBlock(level, cover))
                 || distance < (isHolePeekEvent(event) || isLowCeilingPeekEvent(event) ? 4.0D : 5.5D)) {
             disappear(friend, "peek_cover_lost", true);
