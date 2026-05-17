@@ -1,42 +1,183 @@
-# friend
-<<<<<<< HEAD
+# Friend
 
-Forge 1.20.1 psychological horror mod.
+Psychological horror mod for Minecraft Forge 1.20.1 focused on stalking behavior, environmental fear and adaptive AI.
 
-Friend is an observer entity. It does not naturally spawn, pathfind, chase, or behave like a normal hostile mob. Server events track player isolation, darkness, underground time, and a learned home location, then trigger rare sound and sighting events.
+Unlike typical cave dweller mods, Friend is designed around tension, paranoia and environmental horror instead of constant chase spam. The entity observes the player from a distance, performs dynamic peek events, appears inside cave systems, reacts to player behavior and becomes more aggressive over time.
 
-## Build
+The goal of the mod is to create the feeling that something intelligent is always nearby.
 
-Install JDK 17, then run:
+---
 
-```powershell
-gradle build
+# Features
+
+## Stalking AI
+
+Friend watches the player instead of instantly attacking.
+
+The entity can:
+
+* stand far away and observe;
+* hide behind cave corners;
+* disappear when noticed;
+* react to the player's home and movement patterns;
+* dynamically choose stalking positions.
+
+## Dynamic Peek System
+
+Friend performs cinematic peek events inside caves and structures.
+
+The system:
+
+* searches for believable positions;
+* uses fallback logic if a perfect spot is not found;
+* avoids obvious scripted behavior;
+* supports different angles and directions using shared animations.
+
+## Environmental Horror
+
+The mod focuses heavily on atmosphere and psychological pressure.
+
+Features include:
+
+* cave encounters;
+* distant appearances;
+* window stalking;
+* darkness and light suppression;
+* ambient horror events;
+* adaptive aggression escalation.
+
+## Adaptive Aggression
+
+Friend does not constantly rush the player.
+
+Attack frequency is intentionally limited to preserve tension:
+
+* attacks have cooldowns;
+* fake attacks and stalking are mixed together;
+* phase `?` is more aggressive but still avoids constant spam;
+* the entity becomes more dangerous over long survival sessions.
+
+## Advanced Movement
+
+The entity uses custom movement and pathfinding systems:
+
+* obstacle handling;
+* terrain traversal;
+* improved navigation in caves;
+* anti-abuse block breaking;
+* avoidance of grass and small plants as obstacles.
+
+## Custom Animation System
+
+The mod uses GeckoLib animations for:
+
+* stalking;
+* peeking;
+* running;
+* disappearing;
+* window interactions;
+* special white variant behavior.
+
+---
+
+# Requirements
+
+## Minecraft Version
+
+* Minecraft Forge 1.20.1
+* Java 17
+
+## Dependencies
+
+The following mods are required:
+
+* GeckoLib 4
+* SmartBrainLib
+
+---
+
+# Installation
+
+1. Install Minecraft Forge 1.20.1
+2. Install required dependencies:
+
+   * GeckoLib 4
+   * SmartBrainLib
+3. Download the latest Friend `.jar`
+4. Place the file into:
+
+```text id="8joh7o"
+.minecraft/mods
 ```
 
-If you do not have Gradle installed, import the folder into IntelliJ IDEA as a Gradle project, or generate a Gradle wrapper with a local Gradle install:
+5. Launch Minecraft
 
-```powershell
-gradle wrapper --gradle-version 8.8
-.\gradlew build
+---
+
+# Build
+
+Project path:
+
+```text id="2k6hm4"
+C:\Users\doxbi\Documents\New project\friend_1.20.1
 ```
 
-This machine currently reports Java 8 as default, so Forge 1.20.1 will not compile until JDK 17 is selected.
+Build command:
 
-## Debug commands
+```powershell id="g8o3v1"
+cd "C:\Users\doxbi\Documents\New project\friend_1.20.1"
+.\gradlew.bat build
+```
 
-Operator-only:
+Compiled jars:
 
-- `/friend debug`
-- `/friend status`
-- `/friend reset`
-- `/friend phase <0-5>`
-- `/friend event <event_id>`
+```text id="tf6zla"
+build/libs/
+```
 
-## Assets
+---
 
-The included texture is a generated placeholder designed around the mask-face concept. Replace it with final Blockbench texture art before release if you want a more polished model.
+# Repository
 
-The included OGG files are original synthesized placeholder sounds generated for this project, so they are legal to ship as placeholders. For a stronger final release, replace them with self-recorded or properly licensed CC0/royalty-free sounds. See `ASSET_SOURCES.md`.
-=======
-Psychological horror mod for Minecraft Forge 1.20.1 focused on stalking, environmental fear and adaptive AI behavior. Friend watches the player, hides in caves, suppresses lights, performs dynamic peek events and becomes more aggressive over time instead of relying on constant cheap attacks.
->>>>>>> bf1ffa314f66d8f299ada01ca68c45fc4abcf477
+```text id="cjlwmz"
+https://github.com/ThompsonCBB/friend
+```
+
+---
+
+# Technologies
+
+* Minecraft Forge 1.20.1
+* GeckoLib 4
+* SmartBrainLib
+* Custom AI systems
+* Event-driven horror mechanics
+* Custom pathfinding and stalking logic
+
+---
+
+# Development Notes
+
+Friend is intentionally designed to avoid cheap horror design.
+
+The entity should feel:
+
+* intelligent;
+* unpredictable;
+* distant;
+* atmospheric;
+* oppressive.
+
+The mod focuses on long-term psychological pressure rather than repetitive jumpscares or constant combat.
+
+---
+
+# Credits
+
+Created by:
+
+* ThompsonCBB
+* doxbi
+* Пепеся
+
+Inspired by psychological horror media and modern Minecraft horror mods while focusing on unique stalking-oriented gameplay.
