@@ -231,9 +231,6 @@ public final class FriendDirector {
     private static final String FIRST_CONTACT_DONE = "friend_first_contact_done";
     private static final String FIRST_CONTACT_TAG_CLEAR = "friend_first_contact_tag_clear";
     private static final String FIRST_CONTACT_CLIENT_TAG = "friend_first_contact_roar";
-    private static final String PACING_INITIALIZED = "friend_pacing_initialized";
-    private static final String FIRST_ATTACK_GRACE_UNTIL = "friend_first_attack_grace_until";
-    private static final String FIRST_FALSE_ATTACK_GRACE_UNTIL = "friend_first_false_attack_grace_until";
     private static final String SKY_DIALOG_STARTED = "friend_sky_dialog_started";
     private static final String SKY_DIALOG_STAGE = "friend_sky_dialog_stage";
     private static final String SKY_DIALOG_NEXT = "friend_sky_dialog_next";
@@ -242,7 +239,7 @@ public final class FriendDirector {
     private static final String CHAT_TRIGGER_COOLDOWN = "friend_chat_trigger_cooldown";
     private static final String CHAT_SECRET_COUNT = "friend_chat_secret_count";
     private static final long ATTACK_SCREAM_LENGTH = 20L * 100L;
-    private static final int ATTACK_INTRO_TICKS = 20 * 3;
+    private static final int ATTACK_INTRO_TICKS = 6;
     private static final int ATTACK_MAX_TICKS = 20 * 26;
     private static final String[] SKY_DIALOG_CAT = {
             "Friend: you threw away a small warm thing.",
@@ -315,7 +312,6 @@ public final class FriendDirector {
         ServerLevel level = player.serverLevel();
         long time = level.getGameTime();
         CompoundTag data = state(player);
-        initSurvivalPacing(level, player, data, time);
         if (data.getBoolean(FIFTH_PENDING) && !level.dimension().equals(FriendDimensions.FIFTH)) {
             data.putBoolean(FIFTH_PENDING, false);
             data.putBoolean(BAD_ENDING_LOCKED, true);
@@ -438,24 +434,6 @@ public final class FriendDirector {
         data.putDouble(LAST_Z, player.getZ());
     }
 
-
-    private static void initSurvivalPacing(ServerLevel level, ServerPlayer player, CompoundTag data, long time) {
-        if (data.getBoolean(PACING_INITIALIZED)) {
-            return;
-        }
-        data.putBoolean(PACING_INITIALIZED, true);
-
-        long attackGrace = time + seconds(8 * 60, 12 * 60);
-        long falseAttackGrace = time + seconds(5 * 60, 7 * 60);
-
-        data.putLong(FIRST_ATTACK_GRACE_UNTIL, attackGrace);
-        data.putLong(FIRST_FALSE_ATTACK_GRACE_UNTIL, falseAttackGrace);
-        data.putLong(ATTACK_LOCK_UNTIL, Math.max(data.getLong(ATTACK_LOCK_UNTIL), attackGrace));
-        data.putLong(LAST_VISIBLE_PRESSURE, time);
-        data.putLong(EVENT_COOLDOWN, Math.max(data.getLong(EVENT_COOLDOWN), time + seconds(90, 180)));
-        data.putDouble(THREAT_DEBT, 0.0D);
-        data.putDouble(FEAR_SCORE, 0.0D);
-    }
 
     private static void tickFirstContactRoar(ServerLevel level, ServerPlayer player, CompoundTag data, long time) {
         long clearAt = data.getLong(FIRST_CONTACT_TAG_CLEAR);
@@ -666,10 +644,7 @@ public final class FriendDirector {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
-        ServerLevel level = player.serverLevel();
-        long time = level.getGameTime();
         CompoundTag data = state(player);
-        initSurvivalPacing(level, player, data, time);
         if (data.getBoolean(FIFTH_PENDING) || data.getBoolean(BAD_ENDING_LOCKED)) {
             data.putBoolean(FIFTH_PENDING, false);
             data.putBoolean(BAD_ENDING_LOCKED, true);
@@ -1614,7 +1589,6 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         if (best == null) {
             return;
         }
-
         int bestScore = best.getInt("score");
         BlockPos bestPos = new BlockPos(best.getInt("x"), best.getInt("y"), best.getInt("z"));
         HomeScan bestScan = scanHomeArea(level, bestPos, data);
@@ -1623,17 +1597,10 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
             return;
         }
 
-        boolean hasUtility = bestScan.beds > 0 || bestScan.storage > 0 || bestScan.workstations > 0
-                || rememberedPlayerPlacedBlock(data, MEMORY_CONTAINERS, bestPos, 18).isPresent()
-                || rememberedPlayerPlacedBlock(data, MEMORY_DOORS, bestPos, 18).isPresent()
-                || rememberedPlayerPlacedBlock(data, MEMORY_WINDOWS, bestPos, 18).isPresent();
-        boolean enoughVisits = best.getInt("visits") >= 3;
-        boolean strongHouse = bestScore >= 130 && bestScan.playerPlaced >= 24 && bestScan.enclosure >= 24 && hasUtility;
-        boolean livedThere = best.getInt("night") >= 1 || data.getLong(HOME_TIME) >= 20L * 60L;
-        if (!enoughVisits || !strongHouse || !livedThere) {
+        boolean instant = currentScore >= 110 || bestScore >= 135 || (best.getInt("visits") >= 4 && bestScore >= 96);
+        if (!instant) {
             return;
         }
-
         int x = best.getInt("x");
         int y = best.getInt("y");
         int z = best.getInt("z");
@@ -1643,7 +1610,7 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
             data.putInt(HOME_Z, z);
         } else {
             BlockPos old = new BlockPos(data.getInt(HOME_X), data.getInt(HOME_Y), data.getInt(HOME_Z));
-            int blend = old.distSqr(new BlockPos(x, y, z)) > 64.0D * 64.0D && bestScore > 180 ? 2 : 9;
+            int blend = old.distSqr(new BlockPos(x, y, z)) > 64.0D * 64.0D && bestScore > 140 ? 2 : 9;
             data.putInt(HOME_X, (old.getX() * blend + x) / (blend + 1));
             data.putInt(HOME_Y, (old.getY() * blend + y) / (blend + 1));
             data.putInt(HOME_Z, (old.getZ() * blend + z) / (blend + 1));
@@ -1779,24 +1746,22 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
     private static boolean catCurseGrief(ServerLevel level, ServerPlayer player, CompoundTag data) {
         BlockPos home = new BlockPos(data.getInt(HOME_X), data.getInt(HOME_Y), data.getInt(HOME_Z));
         boolean useHome = data.getBoolean(HAS_HOME) && player.blockPosition().distSqr(home) < 56.0D * 56.0D;
-        if (!useHome) {
-            return false;
-        }
-        BlockPos center = home;
+        BlockPos center = useHome ? home : player.blockPosition();
         List<BlockPos> candidates = new ArrayList<>();
         for (BlockPos pos : BlockPos.betweenClosed(center.offset(-14, -5, -14), center.offset(14, 7, 14))) {
             if (pos.distSqr(player.blockPosition()) < 5.0D) {
                 continue;
             }
             BlockState state = level.getBlockState(pos);
-            if (isCatCurseGriefTarget(level, pos, state, data)) {
+            if (isCatCurseGriefTarget(level, pos, state, useHome)) {
                 candidates.add(pos.immutable());
             }
         }
         if (candidates.isEmpty()) {
+            playSoundOnly(level, player, "breathing_behind", data);
             return false;
         }
-        int breaks = 1 + RANDOM.nextInt(2);
+        int breaks = 1 + RANDOM.nextInt(3);
         for (int i = 0; i < breaks && !candidates.isEmpty(); i++) {
             BlockPos pos = candidates.remove(RANDOM.nextInt(candidates.size()));
             if (level.destroyBlock(pos, true, player)) {
@@ -1806,11 +1771,11 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         return true;
     }
 
-    private static boolean isCatCurseGriefTarget(ServerLevel level, BlockPos pos, BlockState state, CompoundTag data) {
+    private static boolean isCatCurseGriefTarget(ServerLevel level, BlockPos pos, BlockState state, boolean rememberedHomeArea) {
         if (state.isAir() || state.getDestroySpeed(level, pos) < 0.0F || level.getBlockEntity(pos) != null) {
             return false;
         }
-        if (isProtectedBlock(state) || !isPlayerPlacedNear(data, pos, 1)) {
+        if (isProtectedBlock(state)) {
             return false;
         }
         Block block = state.getBlock();
@@ -1820,7 +1785,7 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
                 || block instanceof WallBlock) {
             return true;
         }
-        return state.isSolidRender(level, pos) && state.getDestroySpeed(level, pos) <= 4.0F;
+        return rememberedHomeArea && state.isSolidRender(level, pos) && state.getDestroySpeed(level, pos) <= 4.0F;
     }
 
     private static void tryEvent(ServerLevel level, ServerPlayer player, CompoundTag data, String forcedEvent) {
@@ -1980,16 +1945,15 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         }
 
         List<WeightedEvent> events = new ArrayList<>();
-        addEvent(events, "no_event_fake_delay", cursed ? 12 : threatDebt > 220 ? 2 : 6);
-        boolean allowFootsteps = underground || night || nearHome || routeHabit >= 3;
-        addEvent(events, "fake_footsteps", allowFootsteps ? (cursed ? 8 : 4 + Math.min(3, threatDebt / 160)) : 0);
-        addEvent(events, "distant_scrape", underground || night ? (cursed ? 7 : 6) : 2);
-        addEvent(events, "distant_knock", underground || nearHome || night ? (cursed ? 6 : 5) : 1);
-        addEvent(events, "breathing_behind", underground || night || nearHome ? 5 + Math.min(4, fear / 100) : 1);
+        addEvent(events, "no_event_fake_delay", cursed ? 12 : threatDebt > 220 ? 1 : 4);
+        addEvent(events, "fake_footsteps", cursed ? 10 : 7 + Math.min(6, threatDebt / 120));
+        addEvent(events, "distant_scrape", cursed ? 8 : 9);
+        addEvent(events, "distant_knock", cursed ? 7 : 8);
+        addEvent(events, "breathing_behind", 8 + Math.min(7, fear / 70));
 
         if (phase >= 1) {
-            addEvent(events, "mimic_footsteps", underground || routeHabit >= 3 ? 6 : 0);
-            addEvent(events, "wall_scurry", underground ? 7 : 0);
+            addEvent(events, "mimic_footsteps", underground ? 9 : 4);
+            addEvent(events, "wall_scurry", underground ? 9 : 3);
             addEvent(events, "corner_peek", underground ? 22 : 12 + Math.min(8, threatDebt / 100));
             addEvent(events, "visible_peek", underground ? 16 : 9 + Math.min(9, threatDebt / 100));
             addEvent(events, "hand_peek", underground ? 12 : 5);
@@ -1999,7 +1963,7 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         }
         if (phase >= 2 && (underground || night)) {
             addEvent(events, "torch_removed", underground ? 10 : 5);
-            addEvent(events, "sprint_behind_wall", underground ? 6 : 0);
+            addEvent(events, "sprint_behind_wall", underground ? 8 : 2);
         }
         if (phase >= 2 && underground) {
             addEvent(events, "hole_peek", 11);
@@ -2057,41 +2021,40 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
 
     private static boolean shouldRollSurvivalAttack(ServerLevel level, ServerPlayer player, CompoundTag data,
                                                     int phase, boolean underground, boolean night, boolean nearHome) {
-        if (phase < 2 || data.getBoolean(CAT_CURSE) || level.getDifficulty() == Difficulty.PEACEFUL) {
+        if (phase < 1 || data.getBoolean(CAT_CURSE) || level.getDifficulty() == Difficulty.PEACEFUL) {
             return false;
         }
         long now = level.getGameTime();
-        if (now < data.getLong(FIRST_ATTACK_GRACE_UNTIL)) {
-            return false;
-        }
         if (!attackCooldownReady(data, now)) {
             return false;
         }
 
+        // Survival balance: attacks must be frightening, not spammy. Visible pressure and false attacks
+        // can be common; real damage-rushes should be rare and protected by a hard cooldown.
         float chance = switch (Math.min(Math.max(phase, 1), MAX_RELEASE_PHASE)) {
-            case 1 -> 0.0F;
-            case 2 -> 0.008F;
-            case 3 -> 0.018F;
-            default -> 0.032F;
+            case 1 -> 0.025F;
+            case 2 -> 0.045F;
+            case 3 -> 0.075F;
+            default -> 0.11F;
         };
-        chance += Math.min(0.008F, data.getInt(FEAR_SCORE) / 22000.0F);
-        chance += Math.min(0.007F, data.getInt(THREAT_DEBT) / 36000.0F);
-        if (underground && phase >= 3) chance += 0.004F;
-        if (night && phase >= 3) chance += 0.003F;
-        if (nearHome && phase >= 4) chance += 0.004F;
-        return RANDOM.nextFloat() < Math.min(chance, 0.055F);
+        chance += Math.min(0.025F, data.getInt(FEAR_SCORE) / 11000.0F);
+        chance += Math.min(0.020F, data.getInt(THREAT_DEBT) / 21000.0F);
+        if (underground) chance += 0.015F;
+        if (night) chance += 0.010F;
+        if (nearHome) chance += 0.010F;
+        return RANDOM.nextFloat() < Math.min(chance, 0.15F);
     }
 
     private static int attackWeightForPhase(int phase, boolean underground, boolean night, boolean nearHome) {
         int clamped = Math.min(Math.max(phase, 1), MAX_RELEASE_PHASE);
         int weight = switch (clamped) {
-            case 1 -> 0;
-            case 2 -> 1;
-            case 3 -> 2;
-            default -> 3;
+            case 1 -> 1;
+            case 2 -> 2;
+            case 3 -> 4;
+            default -> 6;
         };
-        if (underground && clamped >= 3) weight += 1;
-        if (night && clamped >= 4) weight += 1;
+        if (underground) weight += 1;
+        if (night && clamped >= 3) weight += 1;
         if (nearHome && clamped >= 4) weight += 1;
         return weight;
     }
@@ -2454,8 +2417,6 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         friend.moveTo(blockPos.getX() + 0.5D, blockPos.getY(), blockPos.getZ() + 0.5D, 0.0F, 0.0F);
         friend.configure(player.getUUID().toString(), "attack_emerge", 20 * 80, 0);
         friend.setCornerEscalated(true);
-        friend.getPersistentData().putLong("friend_attack_started_at", now);
-        applyAttackIntroDarkness(player);
         facePlayer(friend, player);
         level.addFreshEntity(friend);
         data.putBoolean(ACTIVE, true);
@@ -2485,8 +2446,6 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         friend.configure(player.getUUID().toString(), "false_attack", seconds(4, 7), 0);
         friend.setCornerEscalated(true);
         friend.getPersistentData().putBoolean("friend_false_attack", true);
-        friend.getPersistentData().putLong("friend_attack_started_at", now);
-        applyAttackIntroDarkness(player);
         facePlayer(friend, player);
         level.addFreshEntity(friend);
         data.putBoolean(ACTIVE, true);
@@ -3646,8 +3605,6 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
             if (!tag.getBoolean("friend_peek_attack_cooldown_started")) {
                 beginAttackCooldown(data, now, true);
                 tag.putBoolean("friend_peek_attack_cooldown_started", true);
-                tag.putLong("friend_attack_started_at", now);
-                applyAttackIntroDarkness(player);
             }
             handleControlledAttack(level, player, friend, distance, true);
             return true;
@@ -3733,34 +3690,18 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
     }
 
     private static void handleControlledAttack(ServerLevel level, ServerPlayer player, FriendEntity friend, double distance, boolean fromCornerPeek) {
-        CompoundTag tag = friend.getPersistentData();
-        long now = level.getGameTime();
-        long startedAt = tag.getLong("friend_attack_started_at");
-        if (startedAt <= 0L) {
-            startedAt = now;
-            tag.putLong("friend_attack_started_at", startedAt);
-            applyAttackIntroDarkness(player);
-        }
-
-        int attackAge = (int) (now - startedAt);
-        boolean falseAttack = friend.eventId().equals("false_attack") || tag.getBoolean("friend_false_attack");
-        int maxTicks = falseAttack ? ATTACK_INTRO_TICKS + 20 * 5 : ATTACK_MAX_TICKS;
-        if (attackAge >= maxTicks) {
+        int sceneTicks = friend.tickCount;
+        boolean falseAttack = friend.eventId().equals("false_attack") || friend.getPersistentData().getBoolean("friend_false_attack");
+        int maxTicks = falseAttack ? 20 * 5 : ATTACK_MAX_TICKS;
+        if (sceneTicks >= maxTicks) {
             disappear(friend, falseAttack ? "false_attack_vanish" : fromCornerPeek ? "corner_attack_timeout" : "attack_timeout", true);
             return;
         }
 
-        if (attackAge < ATTACK_INTRO_TICKS) {
+        if (sceneTicks < ATTACK_INTRO_TICKS) {
             friend.setRushing(false);
-            friend.getNavigation().stop();
-            friend.setDeltaMovement(Vec3.ZERO);
-
-            // Intro rule: Friend does not rush immediately. He stands in idle, stares at the player,
-            // and the player's camera is locked onto him for a short readable horror beat.
             facePlayer(friend, player);
-            lockPlayerCameraToFriend(player, friend);
-
-            if (attackAge == 18) {
+            if (sceneTicks == 18) {
                 playAttackScream(level, player, friend, false);
             }
             return;
@@ -3773,10 +3714,12 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
             friend.setRushing(true);
             double speed = matchingRushSpeed(player, friend.rage());
             state(player).putDouble(LAST_CHASE_SPEED, speed);
-            if (isEntityPinned(level, friend) && !controlledRelocate(level, friend, player)) {
-                freeSelfFromBlocks(level, friend, player, 1);
+            if (isEntityPinned(level, friend)) {
+                freeSelfFromBlocks(level, friend, friend.rage() ? 2 : 1);
             }
             chaseMove(level, friend, player, speed, true, friend.rage() ? 2 : 1);
+            // No rhythmic bunny-hop here: it made Friend jump before grass/flowers and looked goofy in survival.
+            // FriendMovementController now jumps only when a real collision obstacle blocks the route.
             facePlayer(friend, player);
             if (level.getGameTime() % 12L == 0L) {
                 play(level, friend.blockPosition(), RANDOM.nextBoolean() ? FriendSoundEvents.CREAK_STEP : FriendSoundEvents.JOINT_CRACK, 0.38F, 0.55F, 0.82F);
@@ -3789,6 +3732,8 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
             disappear(friend, "false_attack_close_vanish", true);
             return;
         }
+        long now = level.getGameTime();
+        CompoundTag tag = friend.getPersistentData();
         if (level.getDifficulty() != Difficulty.PEACEFUL && now >= tag.getLong(FriendEntity.TAG_ATTACK_COOLDOWN)) {
             tag.putLong(FriendEntity.TAG_ATTACK_COOLDOWN, now + 22L);
             player.hurt(player.damageSources().mobAttack(friend), 8.0F);
@@ -3797,18 +3742,6 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         if (player.isDeadOrDying() || player.getHealth() <= 0.0F) {
             disappear(friend, fromCornerPeek ? "corner_attack_kill" : "attack_kill", true);
         }
-    }
-
-    private static void applyAttackIntroDarkness(ServerPlayer player) {
-        player.addEffect(new MobEffectInstance(MobEffects.DARKNESS, ATTACK_INTRO_TICKS + 25, 0, false, false));
-    }
-
-    private static void lockPlayerCameraToFriend(ServerPlayer player, FriendEntity friend) {
-        if (player.isSpectator() || player.isCreative()) {
-            return;
-        }
-        Vec3 target = friend.position().add(0.0D, friend.getBbHeight() * 0.72D, 0.0D);
-        player.lookAt(EntityAnchorArgument.Anchor.EYES, target);
     }
 
     private static void playAttackScream(ServerLevel level, ServerPlayer player, FriendEntity friend, boolean repeat) {
@@ -3835,11 +3768,9 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         if (observedSpeed < 0.025D && !player.isSprinting()) {
             expectedPlayerSpeed = 0.095D;
         }
-        // Friend must be faster than a sprinting player, but not teleport-fast.
-        // At default config this should let him gain distance and catch up after several seconds.
-        double matchedSpeed = Math.max(observedSpeed, expectedPlayerSpeed) * (rage ? 2.05D : 1.88D);
+        double matchedSpeed = Math.max(observedSpeed, expectedPlayerSpeed) * (rage ? 1.62D : 1.38D);
         double configuredSpeed = matchedSpeed * FriendConfig.FRIEND_SPEED_MULTIPLIER.get();
-        return Mth.clamp(configuredSpeed, rage ? 0.50D : 0.43D, rage ? 1.10D : 0.98D);
+        return Mth.clamp(configuredSpeed, 0.20D, rage ? 0.92D : 0.78D);
     }
 
     private static void bunnyHop(ServerLevel level, FriendEntity friend, double height, long rhythm) {
@@ -3909,7 +3840,7 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
 
         int broken = 0;
         for (BlockPos pos : bridgeBreakCandidates(player, away)) {
-            if (!isCatBridgeSupport(level, player, pos)) {
+            if (!isCatBridgeSupport(level, pos)) {
                 continue;
             }
             if (level.destroyBlock(pos, true, friend)) {
@@ -3952,16 +3883,12 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         }
     }
 
-    private static boolean isCatBridgeSupport(ServerLevel level, ServerPlayer player, BlockPos pos) {
-        CompoundTag data = state(player);
-        BlockState blockState = level.getBlockState(pos);
-        if (blockState.isAir() || blockState.getDestroySpeed(level, pos) < 0.0F || level.getBlockEntity(pos) != null || isProtectedBlock(blockState)) {
+    private static boolean isCatBridgeSupport(ServerLevel level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        if (state.isAir() || state.getDestroySpeed(level, pos) < 0.0F || level.getBlockEntity(pos) != null || isProtectedBlock(state)) {
             return false;
         }
-        if (!blockState.isFaceSturdy(level, pos, Direction.UP)) {
-            return false;
-        }
-        if (!isPlayerPlacedNear(data, pos, 2)) {
+        if (!state.isFaceSturdy(level, pos, Direction.UP)) {
             return false;
         }
         int openDepth = 0;
@@ -4317,10 +4244,16 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         if (state.is(BlockTags.DOORS) || state.getBlock() instanceof ChestBlock || state.getBlock() instanceof BarrelBlock) {
             return false;
         }
-
-        // Release rule: never mine generated terrain. Friend may only punish vertical/blocking abuse
-        // when the block belongs to the player-built memory.
-        return isPlayerPlacedNear(data, pos, towerSupport ? 1 : 2);
+        boolean playerPlaced = isPlayerPlacedNear(data, pos, towerSupport ? 1 : 2);
+        if (playerPlaced) {
+            return true;
+        }
+        // In release survival, do not shred huge structures. Break only soft/common blocks when the player abuses vertical escape.
+        float hardness = state.getDestroySpeed(level, pos);
+        if (towerSupport) {
+            return hardness <= 5.0F && pos.distSqr(player.blockPosition()) <= 7.0D;
+        }
+        return hardness <= 3.5F && pos.distSqr(player.blockPosition()) <= 18.0D * 18.0D;
     }
 
     private static boolean breakStrategicChaseBlock(ServerLevel level, FriendEntity friend, ServerPlayer player, Vec3 step, int maxBreaks) {
@@ -4353,21 +4286,17 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         if (state.is(BlockTags.DOORS) || state.getBlock() instanceof ChestBlock || state.getBlock() instanceof BarrelBlock) {
             return false;
         }
-        CompoundTag data = state(player);
-        if (!isPlayerPlacedNear(data, pos, 2)) {
-            return false;
-        }
         if (pos.distSqr(player.blockPosition()) > 9.0D * 9.0D && pos.distSqr(friend.blockPosition()) > 4.0D * 4.0D) {
             return false;
         }
         boolean thinWall = isFrontBlocked(level, friend, player.position().subtract(friend.position()).multiply(1.0D, 0.0D, 1.0D));
         boolean pillar = Math.abs(player.getY() - friend.getY()) > 2.2D && pos.getY() < player.getY();
-        boolean bridge = isCatBridgeSupport(level, player, pos);
+        boolean bridge = isCatBridgeSupport(level, pos);
         return thinWall || pillar || bridge;
     }
 
     private static String chaseBreakReason(ServerLevel level, ServerPlayer player, BlockPos pos) {
-        if (isCatBridgeSupport(level, player, pos)) {
+        if (isCatBridgeSupport(level, pos)) {
             return "bridge_support";
         }
         if (pos.getY() < player.getY() - 1) {
@@ -4376,18 +4305,16 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         return "thin_wall";
     }
 
-    private static void freeSelfFromBlocks(ServerLevel level, FriendEntity friend, ServerPlayer player, int maxBreaks) {
+    private static void freeSelfFromBlocks(ServerLevel level, FriendEntity friend, int maxBreaks) {
         int broken = 0;
         BlockPos base = friend.blockPosition();
-        CompoundTag data = state(player);
         for (BlockPos pos : BlockPos.betweenClosed(base.offset(-1, 0, -1), base.offset(1, 3, 1))) {
-            if (broken >= Math.min(1, maxBreaks)) {
+            if (broken >= maxBreaks) {
                 break;
             }
             BlockState state = level.getBlockState(pos);
             if (state.isAir() || state.getCollisionShape(level, pos).isEmpty() || isProtectedBlock(state)
-                    || state.getDestroySpeed(level, pos) < 0.0F || level.getBlockEntity(pos) != null
-                    || !isPlayerPlacedNear(data, pos, 2)) {
+                    || state.getDestroySpeed(level, pos) < 0.0F || level.getBlockEntity(pos) != null) {
                 continue;
             }
             if (level.destroyBlock(pos.immutable(), true, friend)) {
@@ -4424,78 +4351,54 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         if (level.getGameTime() < data.getLong(SOUND_COOLDOWN)) {
             return;
         }
-
-        boolean underground = isPlayerInMineContext(level, player);
-        boolean night = !level.isDay();
-        boolean nearHome = data.getBoolean(HAS_HOME)
-                && player.blockPosition().distSqr(new BlockPos(data.getInt(HOME_X), data.getInt(HOME_Y), data.getInt(HOME_Z))) < 48.0D * 48.0D;
-        boolean hasRoute = routeSize(data) > 8;
-        boolean allowFootsteps = underground || night || nearHome || hasRoute;
-
-        if ((event.equals("fake_footsteps") || event.equals("mimic_footsteps")) && !allowFootsteps) {
-            data.putLong(SOUND_COOLDOWN, level.getGameTime() + seconds(45, 90));
-            return;
-        }
-        if ((event.equals("wall_scurry") || event.equals("sprint_behind_wall")) && !underground) {
-            data.putLong(SOUND_COOLDOWN, level.getGameTime() + seconds(55, 110));
-            return;
-        }
-        if (event.equals("learned_footsteps") && !hasRoute) {
-            data.putLong(SOUND_COOLDOWN, level.getGameTime() + seconds(55, 110));
-            return;
-        }
-
         BlockPos pos = offsetAround(player.blockPosition(), 16, 42);
         switch (event) {
-            case "distant_scrape" -> play(level, pos, FriendSoundEvents.DISTANT_STONE_SCRAPE, 0.20F, 0.85F, 1.12F);
-            case "distant_knock" -> play(level, pos, FriendSoundEvents.DISTANT_METAL_HIT, 0.17F, 0.75F, 1.05F);
-            case "breathing_behind" -> play(level, behind(player, 3), FriendSoundEvents.QUIET_BREATH, 0.08F, 0.90F, 1.08F);
+            case "distant_scrape" -> play(level, pos, FriendSoundEvents.DISTANT_STONE_SCRAPE, 0.24F, 0.85F, 1.12F);
+            case "distant_knock" -> play(level, pos, FriendSoundEvents.DISTANT_METAL_HIT, 0.20F, 0.75F, 1.05F);
+            case "breathing_behind" -> play(level, behind(player, 3), FriendSoundEvents.QUIET_BREATH, 0.10F, 0.90F, 1.08F);
             case "mimic_footsteps" -> {
                 BlockPos route = rememberedRouteCandidate(player, data).orElse(behind(player, 7 + RANDOM.nextInt(8)));
-                play(level, route, RANDOM.nextBoolean() ? FriendSoundEvents.CREAK_STEP : FriendSoundEvents.JOINT_CRACK, 0.17F, 0.56F, 0.84F);
+                play(level, route, RANDOM.nextBoolean() ? FriendSoundEvents.CREAK_STEP : FriendSoundEvents.JOINT_CRACK, 0.20F, 0.56F, 0.84F);
             }
             case "wall_scurry" -> {
                 BlockPos sidePos = side(player, 6 + RANDOM.nextInt(8));
-                play(level, sidePos, RANDOM.nextBoolean() ? FriendSoundEvents.TUNNEL_STEP_1 : FriendSoundEvents.TUNNEL_STEP_2, 0.16F, 0.62F, 0.86F);
-                play(level, sidePos, FriendSoundEvents.JOINT_CRACK, 0.08F, 0.72F, 0.96F);
+                play(level, sidePos, RANDOM.nextBoolean() ? FriendSoundEvents.TUNNEL_STEP_1 : FriendSoundEvents.TUNNEL_STEP_2, 0.18F, 0.62F, 0.86F);
+                play(level, sidePos, FriendSoundEvents.JOINT_CRACK, 0.10F, 0.72F, 0.96F);
             }
             case "sprint_behind_wall" -> {
                 BlockPos runStart = side(player, 7 + RANDOM.nextInt(10));
                 BlockPos runEnd = behind(player, 10 + RANDOM.nextInt(8));
-                play(level, runStart, FriendSoundEvents.TUNNEL_STEP_1, 0.21F, 0.54F, 0.76F);
-                play(level, runEnd, FriendSoundEvents.TUNNEL_STEP_2, 0.22F, 0.50F, 0.72F);
-                play(level, runEnd, FriendSoundEvents.CREAK_STEP, 0.16F, 0.58F, 0.82F);
+                play(level, runStart, FriendSoundEvents.TUNNEL_STEP_1, 0.25F, 0.54F, 0.76F);
+                play(level, runEnd, FriendSoundEvents.TUNNEL_STEP_2, 0.26F, 0.50F, 0.72F);
+                play(level, runEnd, FriendSoundEvents.CREAK_STEP, 0.20F, 0.58F, 0.82F);
             }
             case "learned_footsteps" -> {
                 BlockPos route = rememberedRouteCandidate(player, data).orElse(behind(player, 8 + RANDOM.nextInt(9)));
-                play(level, route, RANDOM.nextBoolean() ? FriendSoundEvents.TUNNEL_STEP_1 : FriendSoundEvents.TUNNEL_STEP_2, 0.24F, 0.86F, 1.05F);
-                play(level, route.offset(RANDOM.nextInt(5) - 2, 0, RANDOM.nextInt(5) - 2), FriendSoundEvents.CREAK_STEP, 0.18F, 0.82F, 1.0F);
+                play(level, route, RANDOM.nextBoolean() ? FriendSoundEvents.TUNNEL_STEP_1 : FriendSoundEvents.TUNNEL_STEP_2, 0.30F, 0.86F, 1.05F);
+                play(level, route.offset(RANDOM.nextInt(5) - 2, 0, RANDOM.nextInt(5) - 2), FriendSoundEvents.CREAK_STEP, 0.22F, 0.82F, 1.0F);
             }
             case "learned_door" -> {
                 BlockPos door = rememberedBlock(data, MEMORY_DOORS, player.blockPosition(), 42)
                         .orElseGet(() -> offsetAround(player.blockPosition(), 8, 20));
-                play(level, door, FriendSoundEvents.DOOR_OPEN_CLOSE, 0.34F, 0.86F, 1.03F);
+                play(level, door, FriendSoundEvents.DOOR_OPEN_CLOSE, 0.42F, 0.86F, 1.03F);
             }
             case "learned_chest" -> {
                 BlockPos chest = rememberedBlock(data, MEMORY_CONTAINERS, player.blockPosition(), 42)
                         .orElseGet(() -> offsetAround(player.blockPosition(), 7, 18));
-                play(level, chest, FriendSoundEvents.CHEST_OPEN, 0.32F, 0.86F, 1.02F);
+                play(level, chest, FriendSoundEvents.CHEST_OPEN, 0.40F, 0.86F, 1.02F);
             }
             case "door_open_far" -> play(level, rememberedBlock(data, MEMORY_DOORS, player.blockPosition(), 42)
-                    .orElseGet(() -> offsetAround(player.blockPosition(), 8, 20)), FriendSoundEvents.DOOR_OPEN_CLOSE, 0.30F, 0.88F, 1.04F);
+                    .orElseGet(() -> offsetAround(player.blockPosition(), 8, 20)), FriendSoundEvents.DOOR_OPEN_CLOSE, 0.38F, 0.88F, 1.04F);
             case "chest_open_far" -> {
                 BlockPos chestPos = rememberedBlock(data, MEMORY_CONTAINERS, player.blockPosition(), 42)
                         .orElseGet(() -> offsetAround(player.blockPosition(), 7, 18));
-                play(level, chestPos, FriendSoundEvents.CHEST_OPEN, 0.28F, 0.88F, 1.02F);
+                play(level, chestPos, FriendSoundEvents.CHEST_OPEN, 0.36F, 0.88F, 1.02F);
             }
             case "window_knock" -> playWindowKnock(level, player, data);
             case "dream_hint" -> play(level, pos, FriendSoundEvents.DREAM_AMBIENT, 0.10F, 0.72F, 0.92F);
-            default -> {
-                data.putLong(SOUND_COOLDOWN, level.getGameTime() + seconds(50, 100));
-                return;
-            }
+            default -> play(level, pos, RANDOM.nextBoolean() ? FriendSoundEvents.TUNNEL_STEP_1 : FriendSoundEvents.TUNNEL_STEP_2, 0.16F, 0.80F, 1.10F);
         }
-        data.putLong(SOUND_COOLDOWN, level.getGameTime() + (data.getBoolean(CAT_CURSE) ? seconds(28, 70) : seconds(120, 300)));
+        data.putLong(SOUND_COOLDOWN, level.getGameTime() + (data.getBoolean(CAT_CURSE) ? seconds(28, 70) : seconds(95, 240)));
     }
 
     private static void playWindowKnock(ServerLevel level, ServerPlayer player, CompoundTag data) {
@@ -6155,14 +6058,14 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
 
     private static int cooldown(int phase) {
         return switch (phase) {
-            case 1 -> seconds(45, 90);
-            case 2 -> seconds(50, 110);
-            case 3 -> seconds(60, 135);
-            case 4 -> seconds(70, 160);
-            case 5 -> seconds(70, 170);
-            case 6 -> seconds(75, 190);
+            case 1 -> seconds(22, 45);
+            case 2 -> seconds(20, 50);
+            case 3 -> seconds(18, 45);
+            case 4 -> seconds(16, 42);
+            case 5 -> seconds(20, 58);
+            case 6 -> seconds(24, 72);
             case 7 -> seconds(35, 95);
-            default -> seconds(45, 90);
+            default -> seconds(25, 60);
         };
     }
 
@@ -6182,9 +6085,6 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         }
         long lock = data.getLong(ATTACK_LOCK_UNTIL);
         long lastAttack = data.getLong(LAST_ATTACK_TIME);
-        if (now < data.getLong(FIRST_ATTACK_GRACE_UNTIL)) {
-            return false;
-        }
         if (lock > 0L && now < lock) {
             return false;
         }
@@ -6193,9 +6093,6 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
     }
 
     private static boolean falseAttackCooldownReady(CompoundTag data, long now) {
-        if (now < data.getLong(FIRST_FALSE_ATTACK_GRACE_UNTIL)) {
-            return false;
-        }
         long lastFalseAttack = data.getLong(LAST_FALSE_ATTACK);
         return lastFalseAttack <= 0L || now >= lastFalseAttack + seconds(240, 360);
     }
@@ -6274,4 +6171,3 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
                             int interiorAir, int playerPlaced, int enclosure) {
     }
 }
-
