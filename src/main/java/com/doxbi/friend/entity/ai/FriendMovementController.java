@@ -29,91 +29,169 @@ public final class FriendMovementController {
         }
 
         ensurePhysical(friend, requestedSpeed);
+        clearSoftPathObstacles(level, friend, target);
 
         boolean stuck = updateStuck(level, friend, target);
         int stuckTicks = friend.getPersistentData().getInt(FriendEntity.TAG_STUCK_TICKS);
         long now = level.getGameTime();
 
-        friend.getLookControl().setLookAt(target, 50.0F, 50.0F);
+        friend.getLookControl().setLookAt(target, 60.0F, 60.0F);
 
-        // Keep navigation aggressive enough that it does not brake hard in front of 1-block obstacles.
-        double navSpeed = Mth.clamp(requestedSpeed * (friend.rage() ? 1.66D : 1.46D),
-                0.64D, friend.rage() ? 1.26D : 1.08D);
+        Vec3 forward = target.position().subtract(friend.position()).multiply(1.0D, 0.0D, 1.0D);
+        if (forward.lengthSqr() > 0.001D) {
+            forward = forward.normalize();
+        }
+
+        /*
+         * Predator rule:
+         * Navigation is only for path shape. Actual chase momentum is maintained manually.
+         * This prevents vanilla navigation from braking on grass, flowers, corners and tiny obstacles.
+         */
+        boolean appliedDirectDrive = forward.lengthSqr() > 0.001D
+                && !isDropAhead(level, friend, forward, 3)
+                && hasMostlyOpenPredatorLane(level, friend, forward);
+
+        if (appliedDirectDrive) {
+            applyPredatorDrive(friend, forward, requestedSpeed);
+        }
+
+        double navSpeed = Mth.clamp(requestedSpeed * (friend.rage() ? 1.95D : 1.72D),
+                0.78D, friend.rage() ? 1.45D : 1.30D);
 
         CompoundTag pathTag = friend.getPersistentData();
         boolean normalRepath = friend.getNavigation().isDone()
                 || now >= pathTag.getLong(FriendEntity.TAG_LAST_PATH_RECALC);
         boolean stuckMicroRepath = stuck && now >= pathTag.getLong(TAG_STUCK_MICRO_REPATH_COOLDOWN);
         if (normalRepath || stuckMicroRepath) {
-            friend.getNavigation().moveTo(target, stuck ? navSpeed + 0.20D : navSpeed);
+            friend.getNavigation().moveTo(target, stuck ? navSpeed + 0.25D : navSpeed);
             if (normalRepath) {
-                pathTag.putLong(FriendEntity.TAG_LAST_PATH_RECALC, now + (stuck ? 4L : 8L));
+                pathTag.putLong(FriendEntity.TAG_LAST_PATH_RECALC, now + (stuck ? 3L : 6L));
             }
             if (stuck) {
-                pathTag.putLong(TAG_STUCK_MICRO_REPATH_COOLDOWN, now + 5L);
+                pathTag.putLong(TAG_STUCK_MICRO_REPATH_COOLDOWN, now + 4L);
             }
         }
 
-        Vec3 forward = target.position().subtract(friend.position()).multiply(1.0D, 0.0D, 1.0D);
         if (forward.lengthSqr() > 0.001D) {
-            forward = forward.normalize();
-
-            /*
-             * Release chase rule:
-             * Do not wait until Friend is already stuck before jumping.
-             * The old controller jumped too late, so he visibly braked at fences/blocks. This proactive hurdle preserves horizontal speed over simple
-             * one-block obstacles.
-             */
             if (now >= cooldown(friend, FriendEntity.TAG_JUMP_COOLDOWN)
                     && tryFastHurdle(level, friend, forward, requestedSpeed)) {
-                setCooldown(friend, FriendEntity.TAG_JUMP_COOLDOWN, now + 4L);
+                setCooldown(friend, FriendEntity.TAG_JUMP_COOLDOWN, now + 3L);
                 pathTag.putInt(FriendEntity.TAG_STUCK_TICKS, 0);
                 pathTag.putInt(TAG_HURDLE_CHAIN, Math.min(12, pathTag.getInt(TAG_HURDLE_CHAIN) + 1));
                 return new ChaseResult("fast_hurdle", true, false);
             }
 
-            if (stuckTicks >= 3 && now >= cooldown(friend, FriendEntity.TAG_JUMP_COOLDOWN)
+            if (stuckTicks >= 2 && now >= cooldown(friend, FriendEntity.TAG_JUMP_COOLDOWN)
                     && tryJumpOverOneBlock(level, friend, forward, requestedSpeed)) {
-                setCooldown(friend, FriendEntity.TAG_JUMP_COOLDOWN, now + 5L);
+                setCooldown(friend, FriendEntity.TAG_JUMP_COOLDOWN, now + 4L);
                 pathTag.putInt(FriendEntity.TAG_STUCK_TICKS, 0);
                 return new ChaseResult("jump_obstacle", true, false);
             }
 
-            if (stuckTicks >= 10 && now >= cooldown(friend, FriendEntity.TAG_SIDESTEP_COOLDOWN)
+            if (stuckTicks >= 14 && now >= cooldown(friend, FriendEntity.TAG_SIDESTEP_COOLDOWN)
                     && trySideStep(level, friend, target, forward, requestedSpeed)) {
-                setCooldown(friend, FriendEntity.TAG_SIDESTEP_COOLDOWN, now + 10L);
+                setCooldown(friend, FriendEntity.TAG_SIDESTEP_COOLDOWN, now + 8L);
                 return new ChaseResult("side_step", true, false);
             }
         } else {
             pathTag.putInt(TAG_HURDLE_CHAIN, 0);
         }
 
-        if (stuckTicks >= 28 && now >= cooldown(friend, FriendEntity.TAG_REPATH_COOLDOWN)) {
+        if (stuckTicks >= 24 && now >= cooldown(friend, FriendEntity.TAG_REPATH_COOLDOWN)) {
             friend.getNavigation().recomputePath();
-            friend.getNavigation().moveTo(target, friend.rage() ? 1.26D : 1.08D);
-            setCooldown(friend, FriendEntity.TAG_REPATH_COOLDOWN, now + 16L);
-            return new ChaseResult("repath", true, stuckTicks >= 58);
+            friend.getNavigation().moveTo(target, friend.rage() ? 1.45D : 1.30D);
+            setCooldown(friend, FriendEntity.TAG_REPATH_COOLDOWN, now + 12L);
+            return new ChaseResult("repath", true, stuckTicks >= 52);
         }
 
-        return new ChaseResult(stuck ? "stuck_scanning" : "ground_navigation", true, stuckTicks >= 58);
+        return new ChaseResult(stuck ? "predator_stuck_scanning" : appliedDirectDrive ? "predator_direct_chase" : "ground_navigation",
+                true, stuckTicks >= 52);
     }
 
     public static void ensurePhysical(FriendEntity friend, double speed) {
         friend.noPhysics = false;
         friend.setNoGravity(false);
         friend.setNoAi(false);
-        friend.setMaxUpStep(1.85F);
+        friend.setMaxUpStep(1.95F);
 
         var attribute = friend.getAttribute(Attributes.MOVEMENT_SPEED);
         if (attribute != null) {
-            attribute.setBaseValue(Mth.clamp(speed, 0.42D, friend.rage() ? 1.14D : 0.96D));
+            attribute.setBaseValue(Mth.clamp(speed, 0.50D, friend.rage() ? 1.38D : 1.18D));
+        }
+    }
+
+    private static void applyPredatorDrive(FriendEntity friend, Vec3 forward, double requestedSpeed) {
+        Vec3 current = friend.getDeltaMovement();
+        double targetHorizontal = Mth.clamp(requestedSpeed * (friend.rage() ? 0.82D : 0.74D),
+                0.40D, friend.rage() ? 0.82D : 0.72D);
+        double currentHorizontal = Math.sqrt(current.x * current.x + current.z * current.z);
+        double keep = Math.max(currentHorizontal, targetHorizontal);
+        double blend = friend.onGround() ? 0.44D : 0.22D;
+        double x = Mth.lerp(blend, current.x, forward.x * keep);
+        double z = Mth.lerp(blend, current.z, forward.z * keep);
+
+        // If vanilla navigation just braked him, immediately restore chase momentum.
+        if (friend.onGround() && currentHorizontal < targetHorizontal * 0.55D) {
+            x = forward.x * targetHorizontal;
+            z = forward.z * targetHorizontal;
+        }
+
+        friend.setDeltaMovement(x, current.y, z);
+        friend.hurtMarked = true;
+    }
+
+    private static boolean hasMostlyOpenPredatorLane(ServerLevel level, FriendEntity friend, Vec3 forward) {
+        for (double distance : new double[]{0.55D, 0.95D, 1.35D}) {
+            Vec3 probe = friend.position().add(forward.scale(distance));
+            BlockPos feet = BlockPos.containing(probe.x, friend.getY() + 0.15D, probe.z);
+            BlockState feetState = level.getBlockState(feet);
+            BlockState headState = level.getBlockState(feet.above());
+
+            if (isIgnoredPathPlant(feetState) || isIgnoredPathPlant(headState)) {
+                continue;
+            }
+            if (!feetState.getCollisionShape(level, feet).isEmpty() && !canStepOrHurdle(level, feet)) {
+                return false;
+            }
+            if (!headState.getCollisionShape(level, feet.above()).isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean canStepOrHurdle(ServerLevel level, BlockPos obstacle) {
+        return isSolid(level, obstacle)
+                && isFree(level, obstacle.above())
+                && isFree(level, obstacle.above(2));
+    }
+
+    private static void clearSoftPathObstacles(ServerLevel level, FriendEntity friend, LivingEntity target) {
+        Vec3 forward = target.position().subtract(friend.position()).multiply(1.0D, 0.0D, 1.0D);
+        if (forward.lengthSqr() < 0.001D) {
+            return;
+        }
+        forward = forward.normalize();
+
+        for (double distance : new double[]{0.45D, 0.85D, 1.25D}) {
+            Vec3 probe = friend.position().add(forward.scale(distance));
+            BlockPos feet = BlockPos.containing(probe.x, friend.getY() + 0.05D, probe.z);
+            clearSoftBlock(level, feet);
+            clearSoftBlock(level, feet.above());
+        }
+    }
+
+    private static void clearSoftBlock(ServerLevel level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        if (isIgnoredPathPlant(state)) {
+            level.destroyBlock(pos, false);
         }
     }
 
     private static boolean updateStuck(ServerLevel level, FriendEntity friend, LivingEntity target) {
         CompoundTag tag = friend.getPersistentData();
         if (friend.tickCount % 5 != 0) {
-            return tag.getInt(FriendEntity.TAG_STUCK_TICKS) > 12;
+            return tag.getInt(FriendEntity.TAG_STUCK_TICKS) > 10;
         }
 
         Vec3 last = new Vec3(tag.getDouble(FriendEntity.TAG_LAST_PROGRESS_X),
@@ -123,8 +201,8 @@ public final class FriendMovementController {
         double distance = friend.distanceTo(target);
         double lastDistance = tag.getDouble(FriendEntity.TAG_LAST_DISTANCE);
         boolean wantsMove = !friend.getNavigation().isDone() || distance > 2.8D;
-        boolean noProgress = wantsMove && moved < 0.07D && distance >= lastDistance - 0.18D;
-        int stuck = noProgress ? tag.getInt(FriendEntity.TAG_STUCK_TICKS) + 5 : Math.max(0, tag.getInt(FriendEntity.TAG_STUCK_TICKS) - 7);
+        boolean noProgress = wantsMove && moved < 0.08D && distance >= lastDistance - 0.20D;
+        int stuck = noProgress ? tag.getInt(FriendEntity.TAG_STUCK_TICKS) + 5 : Math.max(0, tag.getInt(FriendEntity.TAG_STUCK_TICKS) - 8);
 
         tag.putInt(FriendEntity.TAG_STUCK_TICKS, stuck);
         tag.putDouble(FriendEntity.TAG_LAST_PROGRESS_X, friend.getX());
@@ -163,7 +241,6 @@ public final class FriendMovementController {
         Vec3 landingProbe = friend.position().add(forward.scale(1.72D));
         BlockPos landingFeet = BlockPos.containing(landingProbe.x, obstacle.getY() + 1.0D, landingProbe.z);
         if (!canStand(level, landingFeet)) {
-            // Fallback for stairs/slabs/uneven cave floors.
             landingFeet = findGround(level, BlockPos.containing(landingProbe.x, friend.getY() + 1.0D, landingProbe.z));
             if (landingFeet == null || !canStand(level, landingFeet)) {
                 return false;
@@ -172,17 +249,16 @@ public final class FriendMovementController {
 
         CompoundTag tag = friend.getPersistentData();
         int chain = tag.getInt(TAG_HURDLE_CHAIN);
-        double horizontal = Mth.clamp(requestedSpeed * (friend.rage() ? 0.66D : 0.60D),
-                0.34D, friend.rage() ? 0.66D : 0.58D);
+        double horizontal = Mth.clamp(requestedSpeed * (friend.rage() ? 0.86D : 0.78D),
+                0.42D, friend.rage() ? 0.82D : 0.74D);
 
-        // Prevent staircase spam from becoming flight.
         if (chain >= 5) {
-            horizontal *= 0.88D;
+            horizontal *= 0.90D;
         }
 
         friend.getNavigation().stop();
         friend.getJumpControl().jump();
-        friend.setDeltaMovement(forward.x * horizontal, 0.54D, forward.z * horizontal);
+        friend.setDeltaMovement(forward.x * horizontal, 0.56D, forward.z * horizontal);
         friend.hurtMarked = true;
         return true;
     }
@@ -203,11 +279,11 @@ public final class FriendMovementController {
             return false;
         }
 
-        double horizontal = Mth.clamp(requestedSpeed * (friend.rage() ? 0.60D : 0.54D),
-                0.30D, friend.rage() ? 0.58D : 0.50D);
+        double horizontal = Mth.clamp(requestedSpeed * (friend.rage() ? 0.74D : 0.66D),
+                0.36D, friend.rage() ? 0.72D : 0.62D);
 
         friend.getJumpControl().jump();
-        friend.setDeltaMovement(forward.x * horizontal, 0.52D, forward.z * horizontal);
+        friend.setDeltaMovement(forward.x * horizontal, 0.54D, forward.z * horizontal);
         friend.hurtMarked = true;
         return true;
     }
@@ -243,7 +319,7 @@ public final class FriendMovementController {
             return false;
         }
 
-        friend.getNavigation().moveTo(best.x, best.y, best.z, speed > 0.60D ? 1.12D : 0.96D);
+        friend.getNavigation().moveTo(best.x, best.y, best.z, speed > 0.60D ? 1.18D : 1.04D);
         return true;
     }
 
@@ -281,7 +357,8 @@ public final class FriendMovementController {
                 || state.is(Blocks.TALL_GRASS)
                 || state.is(Blocks.FERN)
                 || state.is(Blocks.LARGE_FERN)
-                || state.is(Blocks.DEAD_BUSH);
+                || state.is(Blocks.DEAD_BUSH)
+                || state.is(Blocks.SEAGRASS);
     }
 
     private static boolean isHazard(BlockState state) {

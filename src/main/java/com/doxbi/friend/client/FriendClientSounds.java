@@ -123,9 +123,9 @@ public final class FriendClientSounds {
         private FriendScreamSound(FriendEntity friend) {
             super(FriendSoundEvents.ATTACK_SCREAM.get(), SoundSource.HOSTILE, RandomSource.create());
             this.friend = friend;
-            this.looping = false;
+            this.looping = true;
             this.delay = 0;
-            this.volume = friend.eventId().equals("cat_curse") ? 2.35F : 2.05F;
+            this.volume = 0.01F;
             this.pitch = friend.eventId().equals("cat_curse") ? 0.88F : 0.96F;
             this.attenuation = SoundInstance.Attenuation.NONE;
             updatePosition();
@@ -137,6 +137,11 @@ public final class FriendClientSounds {
                 stop();
                 return;
             }
+
+            // Ramp in, then keep screaming at full power while Friend is rushing.
+            // Do not fade out during chase.
+            float targetVolume = friend.eventId().equals("cat_curse") ? 2.55F : 2.25F;
+            this.volume = Math.min(targetVolume, this.volume + 0.10F);
             updatePosition();
         }
 

@@ -186,6 +186,7 @@ public final class FriendDirector {
     private static final String FIFTH_NEXT_CAT = "friend_fifth_next_cat";
     private static final String FIFTH_CAT_COUNT = "friend_fifth_cat_count";
     private static final String FIFTH_VOICE_PLAYED = "friend_fifth_voice_played";
+    private static final String FIFTH_CAT_CUTSCENE_DONE = "friend_fifth_cat_cutscene_done";
     private static final String FIFTH_LOCK_X = "friend_fifth_lock_x";
     private static final String FIFTH_LOCK_Y = "friend_fifth_lock_y";
     private static final String FIFTH_LOCK_Z = "friend_fifth_lock_z";
@@ -243,7 +244,7 @@ public final class FriendDirector {
     private static final String CHAT_SECRET_COUNT = "friend_chat_secret_count";
     private static final long ATTACK_SCREAM_LENGTH = 20L * 100L;
     private static final int ATTACK_INTRO_TICKS = 20 * 3;
-    private static final int ATTACK_MAX_TICKS = 20 * 26;
+    private static final int ATTACK_MAX_TICKS = 20 * 40;
     private static final String[] SKY_DIALOG_CAT = {
             "Friend: you threw away a small warm thing.",
             "Friend: i ran because the world became loud.",
@@ -329,7 +330,9 @@ public final class FriendDirector {
             return;
         }
         if (level.dimension().equals(FriendDimensions.VOID)) {
-            tickVoidPlayer(level, player, time);
+            data.putBoolean(BAD_ENDING_LOCKED, true);
+            data.putString(ENDING_STATE, "fifth");
+            FriendDimensions.sendToFifth(player);
             return;
         }
         if (level.dimension().equals(FriendDimensions.SKY)) {
@@ -659,11 +662,18 @@ public final class FriendDirector {
         }
         if (event.getEntity() instanceof ServerPlayer player) {
             CompoundTag data = state(player);
-            if (data.getBoolean(CAT_SIN) || data.getBoolean(BAD_ENDING_LOCKED)) {
+            if (data.getBoolean(CAT_SIN) || data.getBoolean(BAD_ENDING_LOCKED) || player.level().dimension().equals(FriendDimensions.FIFTH)) {
                 data.putBoolean(FIFTH_PENDING, true);
-                if (data.getBoolean(BAD_ENDING_LOCKED) || player.level().dimension().equals(FriendDimensions.FIFTH)) {
+                data.putBoolean(BAD_ENDING_LOCKED, true);
+                data.putString(ENDING_STATE, "fifth");
+                if (data.getBoolean(FIFTH_CAT_CUTSCENE_DONE)) {
                     data.putBoolean(FIFTH_STARTED, true);
                     data.putInt(FIFTH_STAGE, Math.max(3, data.getInt(FIFTH_STAGE)));
+                } else {
+                    data.putBoolean(FIFTH_STARTED, false);
+                    data.putInt(FIFTH_STAGE, 0);
+                    data.putInt(FIFTH_CAT_COUNT, 0);
+                    data.putBoolean(FIFTH_VOICE_PLAYED, false);
                 }
             }
         }
@@ -681,10 +691,18 @@ public final class FriendDirector {
         if (data.getBoolean(FIFTH_PENDING) || data.getBoolean(BAD_ENDING_LOCKED)) {
             data.putBoolean(FIFTH_PENDING, false);
             data.putBoolean(BAD_ENDING_LOCKED, true);
-            data.putBoolean(FIFTH_STARTED, true);
-            data.putInt(FIFTH_STAGE, Math.max(3, data.getInt(FIFTH_STAGE)));
             data.putString(ENDING_STATE, "fifth");
-            clearFifthCutsceneEffects(player);
+            if (data.getBoolean(FIFTH_CAT_CUTSCENE_DONE)) {
+                data.putBoolean(FIFTH_STARTED, true);
+                data.putInt(FIFTH_STAGE, Math.max(3, data.getInt(FIFTH_STAGE)));
+                clearFifthCutsceneEffects(player);
+            } else {
+                data.putBoolean(FIFTH_STARTED, false);
+                data.putInt(FIFTH_STAGE, 0);
+                data.putInt(FIFTH_CAT_COUNT, 0);
+                data.putBoolean(FIFTH_VOICE_PLAYED, false);
+                applyFifthCutsceneEffects(player);
+            }
             FriendDimensions.sendToFifth(player);
         }
     }
@@ -1205,6 +1223,13 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         if (strongCandidate) {
             rememberHomeCandidate(level, player, data, center, Math.max(playerBuiltRoom ? 48 : 18, smartScore / 2), playerBuiltRoom);
         }
+        if (playerBuiltRoom) {
+            data.putInt(HOME_X, center.getX());
+            data.putInt(HOME_Y, center.getY());
+            data.putInt(HOME_Z, center.getZ());
+            data.putBoolean(HAS_HOME, true);
+            data.putLong(HOME_TIME, Math.max(data.getLong(HOME_TIME), 20L * 60L));
+        }
         selectBestHomeCandidate(level, player, data, center, smartScore);
 
         if (data.getBoolean(HAS_HOME) && center.distSqr(new BlockPos(data.getInt(HOME_X), data.getInt(HOME_Y), data.getInt(HOME_Z))) < 36.0D * 36.0D) {
@@ -1339,7 +1364,7 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
     private static boolean hasPlayerPlacedDoorNear(ServerLevel level, BlockPos center, CompoundTag data, int radius) {
         for (BlockPos pos : BlockPos.betweenClosed(center.offset(-radius, -1, -radius), center.offset(radius, 3, radius))) {
             BlockState state = level.getBlockState(pos);
-            if (state.getBlock() instanceof DoorBlock && isPlayerPlacedNear(data, pos, 0)) {
+            if (state.getBlock() instanceof DoorBlock && isHomePlacedBlock(data, pos, state)) {
                 return true;
             }
         }
@@ -1357,7 +1382,7 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
                     BlockState state = level.getBlockState(pos);
                     if (isStrictPlayerHouseStructureBlock(state) && state.getCollisionShape(level, pos).isEmpty() == false) {
                         solidStructure++;
-                        if (isPlayerPlacedNear(data, pos, 0)) {
+                        if (isHomePlacedBlock(data, pos, state)) {
                             placedStructure++;
                         }
                     }
@@ -1380,7 +1405,7 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
                     BlockState state = level.getBlockState(pos);
                     if (isStrictPlayerHouseStructureBlock(state)
                             && !state.getCollisionShape(level, pos).isEmpty()
-                            && isPlayerPlacedNear(data, pos, 0)) {
+                            && isHomePlacedBlock(data, pos, state)) {
                         placed++;
                     }
                 }
@@ -1396,11 +1421,64 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
             BlockState state = level.getBlockState(pos);
             if (isStrictPlayerHouseStructureBlock(state)
                     && !state.getCollisionShape(level, pos).isEmpty()
-                    && isPlayerPlacedNear(data, pos, 0)) {
+                    && isHomePlacedBlock(data, pos, state)) {
                 placed++;
             }
         }
         return placed;
+    }
+
+    private static boolean isHomePlacedBlock(CompoundTag data, BlockPos pos, BlockState state) {
+        if (isPlayerPlacedNear(data, pos, 0)) {
+            return true;
+        }
+        return isLikelyPlayerHomeBlock(state);
+    }
+
+    private static boolean isLikelyPlayerHomeBlock(BlockState state) {
+        Block block = state.getBlock();
+        return block instanceof DoorBlock
+                || block instanceof TrapDoorBlock
+                || block instanceof GlassBlock
+                || block instanceof StainedGlassBlock
+                || block instanceof TorchBlock
+                || block instanceof WallTorchBlock
+                || block instanceof CandleBlock
+                || block instanceof BedBlock
+                || block instanceof ChestBlock
+                || block instanceof BarrelBlock
+                || block instanceof CraftingTableBlock
+                || block instanceof FurnaceBlock
+                || block instanceof FenceBlock
+                || block instanceof FenceGateBlock
+                || block instanceof SlabBlock
+                || block instanceof StairBlock
+                || state.is(Blocks.OAK_PLANKS)
+                || state.is(Blocks.SPRUCE_PLANKS)
+                || state.is(Blocks.BIRCH_PLANKS)
+                || state.is(Blocks.JUNGLE_PLANKS)
+                || state.is(Blocks.ACACIA_PLANKS)
+                || state.is(Blocks.DARK_OAK_PLANKS)
+                || state.is(Blocks.MANGROVE_PLANKS)
+                || state.is(Blocks.CHERRY_PLANKS)
+                || state.is(Blocks.BAMBOO_PLANKS)
+                || state.is(Blocks.CRIMSON_PLANKS)
+                || state.is(Blocks.WARPED_PLANKS)
+                || state.is(Blocks.COBBLESTONE)
+                || state.is(Blocks.STONE_BRICKS)
+                || state.is(Blocks.BRICKS)
+                || state.is(Blocks.DEEPSLATE_BRICKS)
+                || state.is(Blocks.POLISHED_DEEPSLATE)
+                || state.is(Blocks.COBBLED_DEEPSLATE)
+                || state.is(Blocks.SMOOTH_STONE)
+                || state.is(Blocks.WHITE_WOOL)
+                || state.is(Blocks.BLACK_WOOL)
+                || state.is(Blocks.GRAY_WOOL)
+                || state.is(Blocks.BROWN_WOOL)
+                || state.is(Blocks.TERRACOTTA)
+                || state.is(Blocks.WHITE_TERRACOTTA)
+                || state.is(Blocks.GRAY_TERRACOTTA)
+                || state.is(Blocks.BLACK_TERRACOTTA);
     }
 
     private static int countInteriorAir(ServerLevel level, BlockPos center) {
@@ -3015,22 +3093,10 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
     }
 
     private static void tickVoidPlayer(ServerLevel level, ServerPlayer player, long time) {
-        FriendDimensions.ensureVoidCorridor(level);
-        if (player.getY() < 76.0D || player.getY() > 92.0D || Math.abs(player.getX()) > 8.0D
-                || player.getZ() < FriendDimensions.VOID_START.getZ() - 16.0D || player.getZ() > FriendDimensions.VOID_LENGTH + 4.0D) {
-            player.teleportTo(level, FriendDimensions.VOID_START.getX() + 0.5D, FriendDimensions.VOID_START.getY() + 1.0D,
-                    Mth.clamp(player.getZ(), 1.5D, FriendDimensions.VOID_LENGTH - 8.0D), 180.0F, 0.0F);
-        }
-        player.addEffect(new MobEffectInstance(MobEffects.DARKNESS, 80, 0, false, false));
-        if (time % 90L == 0L) {
-            play(level, player.blockPosition(), FriendSoundEvents.VOID_AMBIENT, 0.18F, 0.55F, 0.8F);
-        }
-        if (time % 160L == 20L) {
-            spawnVoidWatch(level, player);
-        }
-        if (time % 20L == 0L) {
-            player.displayClientMessage(Component.literal("there is no way back"), true);
-        }
+        CompoundTag data = state(player);
+        data.putBoolean(BAD_ENDING_LOCKED, true);
+        data.putString(ENDING_STATE, "fifth");
+        FriendDimensions.sendToFifth(player);
     }
 
     private static void tickSkyPlayer(ServerLevel level, ServerPlayer player, CompoundTag data, long time) {
@@ -3059,8 +3125,13 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         } else if (player.getZ() > 51.0D && Math.abs(player.getX() - 36.0D) < 8.0D) {
             cleanupOwnedFriends(level, player);
             data.putBoolean(SKY_DIALOG_STARTED, false);
+            data.putBoolean(BAD_ENDING_LOCKED, true);
+            data.putString(ENDING_STATE, "fifth");
+            data.putBoolean(FIFTH_CAT_CUTSCENE_DONE, true);
+            data.putBoolean(FIFTH_STARTED, true);
+            data.putInt(FIFTH_STAGE, Math.max(3, data.getInt(FIFTH_STAGE)));
             play(level, player.blockPosition(), FriendSoundEvents.VOID_TRANSITION, 0.95F, 0.85F, 1.0F);
-            FriendDimensions.sendToVoid(player);
+            FriendDimensions.sendToFifth(player);
         }
     }
 
@@ -3129,7 +3200,6 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         }
         player.getFoodData().setFoodLevel(20);
         player.getFoodData().setSaturation(10.0F);
-        player.addEffect(new MobEffectInstance(MobEffects.NIGHT_VISION, 240, 0, false, false));
         if (findOwnedEvent(level, player, "paradise_guide", 120.0D) == null) {
             spawnParadiseGuide(level, player);
         }
@@ -3186,16 +3256,21 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         data.putString(ENDING_STATE, "fifth");
         player.getFoodData().setFoodLevel(20);
         if (time % 160L == 0L || !player.hasEffect(MobEffects.NIGHT_VISION)) {
-            player.addEffect(new MobEffectInstance(MobEffects.NIGHT_VISION, 20 * 60 * 60, 0, false, false));
+            player.addEffect(new MobEffectInstance(MobEffects.NIGHT_VISION, 20 * 12, 0, false, false));
         }
 
         if (!data.getBoolean(FIFTH_STARTED)) {
             data.putBoolean(FIFTH_STARTED, true);
-            data.putInt(FIFTH_STAGE, 0);
+            if (data.getBoolean(FIFTH_CAT_CUTSCENE_DONE)) {
+                data.putInt(FIFTH_STAGE, Math.max(3, data.getInt(FIFTH_STAGE)));
+            } else {
+                data.putInt(FIFTH_STAGE, 0);
+                data.putLong(FIFTH_NEXT_CAT, time + 20L);
+                data.putInt(FIFTH_CAT_COUNT, 0);
+                data.putBoolean(FIFTH_VOICE_PLAYED, false);
+                applyFifthCutsceneEffects(player);
+            }
             data.putLong(FIFTH_STAGE_STARTED, time);
-            data.putLong(FIFTH_NEXT_CAT, time + 20L);
-            data.putInt(FIFTH_CAT_COUNT, 0);
-            data.putBoolean(FIFTH_VOICE_PLAYED, false);
             data.putDouble(FIFTH_LOCK_X, player.getX());
             data.putDouble(FIFTH_LOCK_Y, player.getY());
             data.putDouble(FIFTH_LOCK_Z, player.getZ());
@@ -3206,6 +3281,7 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         long stageStarted = data.getLong(FIFTH_STAGE_STARTED);
 
         if (stage < 3) {
+            applyFifthCutsceneEffects(player);
             freezeFifthPlayer(player, data);
         } else {
             clearFifthCutsceneEffects(player);
@@ -3242,7 +3318,9 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
             cleanupOwnedFriends(level, player);
             level.getEntitiesOfClass(Cat.class, player.getBoundingBox().inflate(72.0D), Cat::isInvulnerable).forEach(Entity::discard);
             data.putInt(FIFTH_STAGE, 3);
+            data.putBoolean(FIFTH_CAT_CUTSCENE_DONE, true);
             data.putLong(FIFTH_STAGE_STARTED, time);
+            clearFifthCutsceneEffects(player);
             player.displayClientMessage(Component.literal("there is only dirt now"), true);
         }
     }
@@ -3262,6 +3340,12 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         if (dx * dx + dy * dy + dz * dz > 0.045D) {
             player.teleportTo(player.serverLevel(), x, y, z, player.getYRot(), player.getXRot());
         }
+    }
+
+    private static void applyFifthCutsceneEffects(ServerPlayer player) {
+        player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 40, 6, false, false));
+        player.addEffect(new MobEffectInstance(MobEffects.DARKNESS, 60, 0, false, false));
+        player.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 80, 0, false, false));
     }
 
     private static void clearFifthCutsceneEffects(ServerPlayer player) {
@@ -4088,17 +4172,14 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         drainChaseLights(level, friend, 10);
         scareMobsAroundFriend(level, friend, 40.0D);
         if (distance <= 2.05D) {
-            if (FriendConfig.ENABLE_VOID.get()) {
-                play(level, player.blockPosition(), FriendSoundEvents.VOID_TRANSITION, 1.0F, 0.92F, 1.0F);
-                CompoundTag data = state(player);
-                if (RANDOM.nextBoolean() && FriendDimensions.sendToSky(player)) {
-                    data.putString(SKY_REASON, "cat");
-                    data.putBoolean(SKY_DIALOG_STARTED, false);
-                } else {
-                    FriendDimensions.sendToVoid(player);
-                }
-                disappear(friend, "void_touch", false);
+            CompoundTag data = state(player);
+            data.putBoolean(BAD_ENDING_LOCKED, true);
+            data.putString(ENDING_STATE, "fifth");
+            play(level, player.blockPosition(), FriendSoundEvents.CAT_CURSE_ROAR, 0.9F, 0.42F, 0.62F);
+            if (level.getDifficulty() != Difficulty.PEACEFUL && !player.isCreative() && !player.isSpectator()) {
+                player.hurt(player.damageSources().mobAttack(friend), Float.MAX_VALUE);
             }
+            disappear(friend, "cat_curse_kill", false);
             return;
         }
 

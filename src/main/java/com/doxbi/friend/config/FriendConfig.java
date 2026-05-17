@@ -26,7 +26,7 @@ public final class FriendConfig {
         ENABLE_BLOCK_DESTRUCTION = builder.comment("Allow Friend to break only player-placed anti-abuse blocks during chase logic.").define("enableBlockDestruction", true);
         EVENT_FREQUENCY_MULTIPLIER = builder.comment("Lower values make ambient events more frequent.").defineInRange("eventFrequencyMultiplier", 1.0D, 0.1D, 10.0D);
         ATTACK_FREQUENCY_MULTIPLIER = builder.comment("Lower values make controlled attacks more frequent.").defineInRange("attackFrequencyMultiplier", 1.0D, 0.1D, 10.0D);
-        FRIEND_SPEED_MULTIPLIER = builder.comment("Multiplier for Friend chase speed. 1.0 = normal fast chase, 0.75 = slower, 1.25 = faster. Default is 10% faster for release testing.").defineInRange("friendSpeedMultiplier", 1.232D, 0.25D, 2.0D);
+        FRIEND_SPEED_MULTIPLIER = builder.comment("Multiplier for Friend chase speed. 1.0 = normal fast chase, 0.75 = slower, 1.25 = faster.").defineInRange("friendSpeedMultiplier", 1.38D, 0.25D, 2.0D);
         DEBUG_MODE = builder.comment("Extra actionbar/status hints for testing.").define("debugMode", false);
         SUBTLE_MODE = builder.comment("Keeps normal hauntings quieter and rarer. Secret phase ignores this.").define("subtleMode", false);
         builder.pop();
