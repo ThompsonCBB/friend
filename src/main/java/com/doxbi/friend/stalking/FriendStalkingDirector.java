@@ -76,7 +76,11 @@ public final class FriendStalkingDirector {
             return false;
         }
         friend.moveTo(chosen.hiddenAnchor().x, chosen.hiddenAnchor().y, chosen.hiddenAnchor().z, chosen.bodyYaw(), 0.0F);
-        friend.configure(player.getUUID().toString(), eventId, lifetime(chosen, intensity), 0);
+        friend.configure(player.getUUID().toString(), eventId, forced != null ? 20 * 10 : lifetime(chosen, intensity), 0);
+        if (forced != null && forced != CoverType.DISTANT_OBSERVE) {
+            friend.startDebugForcedPeek(20 * 7);
+            friend.getPersistentData().putLong("friend_command_peek_until", level.getGameTime() + 20L * 7L);
+        }
         friend.noPhysics = false;
         friend.setNoGravity(false);
         friend.setNoAi(false);
@@ -124,9 +128,11 @@ public final class FriendStalkingDirector {
         boolean line = FriendPerception.hasLineOfSight(player, peek, mode);
 
         friend.lookAt(EntityAnchorArgument.Anchor.EYES, player.getEyePosition());
-        if (friend.isDebugForcedPeekActive()) {
+        if (friend.isDebugForcedPeekActive() || level.getGameTime() < tag.getLong("friend_command_peek_until")) {
             tag.putInt(FriendEntity.TAG_PEEK_PANIC_TICKS, 0);
             tag.putInt(FriendEntity.TAG_LIFETIME, Math.max(tag.getInt(FriendEntity.TAG_LIFETIME), 45));
+            friend.getNavigation().stop();
+            friend.setDeltaMovement(Vec3.ZERO);
             return true;
         }
         if (inStrict && line && fraction >= 0.08D) {
