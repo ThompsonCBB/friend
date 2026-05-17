@@ -1159,13 +1159,15 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         boolean stationary = isStationaryHomeSample(player, data, center);
         boolean night = !level.isDay();
         boolean hasUtility = scan.beds > 0 || scan.storage > 0 || scan.workstations > 0;
-        boolean playerBuilt = scan.playerPlaced >= 18 && scan.enclosure >= 22;
-        boolean realHouse = isStrictPlayerHouse(level, center, data, scan);
+        boolean playerBuiltRoom = isPlayerBuiltRoom(level, center, data);
+        boolean playerBuilt = playerBuiltRoom || (scan.playerPlaced >= 18 && scan.enclosure >= 22);
+        boolean realHouse = playerBuiltRoom || isStrictPlayerHouse(level, center, data, scan);
         boolean rememberedUtility = rememberedPlayerPlacedBlock(data, MEMORY_CONTAINERS, center, 18).isPresent()
                 || rememberedPlayerPlacedBlock(data, MEMORY_DOORS, center, 18).isPresent()
                 || rememberedPlayerPlacedBlock(data, MEMORY_WINDOWS, center, 18).isPresent();
 
         int behaviorScore = 0;
+        if (playerBuiltRoom) behaviorScore += 46;
         if (stationary && realHouse) behaviorScore += 10;
         if (night && realHouse) behaviorScore += 16;
         if (night && scan.lights >= 2 && hasUtility && playerBuilt) behaviorScore += 10;
@@ -1185,6 +1187,7 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         if (scan.enclosure >= 30 && scan.playerPlaced >= 24) smartScore += 16;
 
         boolean strongCandidate = realHouse && (smartScore >= 72
+                || (playerBuiltRoom && smartScore >= 52)
                 || (stationary && night && smartScore >= 58)
                 || (scan.beds > 0 && scan.storage > 0 && scan.enclosure >= 24 && scan.playerPlaced >= 20));
 
@@ -1200,7 +1203,7 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         }
 
         if (strongCandidate) {
-            rememberHomeCandidate(level, player, data, center, Math.max(18, smartScore / 2), false);
+            rememberHomeCandidate(level, player, data, center, Math.max(playerBuiltRoom ? 48 : 18, smartScore / 2), playerBuiltRoom);
         }
         selectBestHomeCandidate(level, player, data, center, smartScore);
 
@@ -1292,6 +1295,125 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
 
         return enoughShell && hasRoof && hasInteriorSpace && hasPlayerUtility && looksLikeHouse;
     }
+
+    private static boolean isPlayerBuiltRoom(ServerLevel level, BlockPos center, CompoundTag data) {
+        BlockPos interior = findPlayerBuiltRoomInterior(level, center);
+        if (interior == null) {
+            return false;
+        }
+
+        if (!hasPlayerPlacedDoorNear(level, interior, data, 8)) {
+            return false;
+        }
+
+        int walls = 0;
+        for (Direction direction : Direction.Plane.HORIZONTAL) {
+            if (hasPlayerPlacedWallPlane(level, interior, data, direction)) {
+                walls++;
+            }
+        }
+
+        int roofBlocks = countPlayerPlacedRoof(level, interior, data);
+        int shellBlocks = countPlayerPlacedShellBlocks(level, interior, data);
+        int interiorAir = countInteriorAir(level, interior);
+
+        return walls >= 4
+                && roofBlocks >= 8
+                && shellBlocks >= 18
+                && interiorAir >= 10;
+    }
+
+    private static BlockPos findPlayerBuiltRoomInterior(ServerLevel level, BlockPos center) {
+        for (int dy = -1; dy <= 2; dy++) {
+            BlockPos pos = center.above(dy);
+            BlockState feet = level.getBlockState(pos);
+            BlockState head = level.getBlockState(pos.above());
+            if ((feet.isAir() || feet.getCollisionShape(level, pos).isEmpty())
+                    && (head.isAir() || head.getCollisionShape(level, pos.above()).isEmpty())) {
+                return pos.immutable();
+            }
+        }
+        return null;
+    }
+
+    private static boolean hasPlayerPlacedDoorNear(ServerLevel level, BlockPos center, CompoundTag data, int radius) {
+        for (BlockPos pos : BlockPos.betweenClosed(center.offset(-radius, -1, -radius), center.offset(radius, 3, radius))) {
+            BlockState state = level.getBlockState(pos);
+            if (state.getBlock() instanceof DoorBlock && isPlayerPlacedNear(data, pos, 0)) {
+                return true;
+            }
+        }
+        return rememberedPlayerPlacedBlock(data, MEMORY_DOORS, center, radius + 2).isPresent();
+    }
+
+    private static boolean hasPlayerPlacedWallPlane(ServerLevel level, BlockPos center, CompoundTag data, Direction direction) {
+        Direction side = direction.getClockWise();
+        for (int distance = 2; distance <= 8; distance++) {
+            int placedStructure = 0;
+            int solidStructure = 0;
+            for (int lateral = -3; lateral <= 3; lateral++) {
+                for (int y = 0; y <= 3; y++) {
+                    BlockPos pos = center.relative(direction, distance).relative(side, lateral).above(y);
+                    BlockState state = level.getBlockState(pos);
+                    if (isStrictPlayerHouseStructureBlock(state) && state.getCollisionShape(level, pos).isEmpty() == false) {
+                        solidStructure++;
+                        if (isPlayerPlacedNear(data, pos, 0)) {
+                            placedStructure++;
+                        }
+                    }
+                }
+            }
+            if (placedStructure >= 5 && solidStructure >= 5) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int countPlayerPlacedRoof(ServerLevel level, BlockPos center, CompoundTag data) {
+        int best = 0;
+        for (int y = 2; y <= 5; y++) {
+            int placed = 0;
+            for (int dx = -4; dx <= 4; dx++) {
+                for (int dz = -4; dz <= 4; dz++) {
+                    BlockPos pos = center.offset(dx, y, dz);
+                    BlockState state = level.getBlockState(pos);
+                    if (isStrictPlayerHouseStructureBlock(state)
+                            && !state.getCollisionShape(level, pos).isEmpty()
+                            && isPlayerPlacedNear(data, pos, 0)) {
+                        placed++;
+                    }
+                }
+            }
+            best = Math.max(best, placed);
+        }
+        return best;
+    }
+
+    private static int countPlayerPlacedShellBlocks(ServerLevel level, BlockPos center, CompoundTag data) {
+        int placed = 0;
+        for (BlockPos pos : BlockPos.betweenClosed(center.offset(-5, -1, -5), center.offset(5, 5, 5))) {
+            BlockState state = level.getBlockState(pos);
+            if (isStrictPlayerHouseStructureBlock(state)
+                    && !state.getCollisionShape(level, pos).isEmpty()
+                    && isPlayerPlacedNear(data, pos, 0)) {
+                placed++;
+            }
+        }
+        return placed;
+    }
+
+    private static int countInteriorAir(ServerLevel level, BlockPos center) {
+        int air = 0;
+        for (BlockPos pos : BlockPos.betweenClosed(center.offset(-2, 0, -2), center.offset(2, 2, 2))) {
+            BlockState state = level.getBlockState(pos);
+            if (state.isAir() || state.getCollisionShape(level, pos).isEmpty()) {
+                air++;
+            }
+        }
+        return air;
+    }
+
 
     private static boolean isPlayerHomeStructureBlock(ServerLevel level, CompoundTag data, BlockPos pos) {
         return isPlayerPlacedNear(data, pos, 0)
@@ -1626,7 +1748,8 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
         int bestScore = best.getInt("score");
         BlockPos bestPos = new BlockPos(best.getInt("x"), best.getInt("y"), best.getInt("z"));
         HomeScan bestScan = scanHomeArea(level, bestPos, data);
-        if (!isStrictPlayerHouse(level, bestPos, data, bestScan)) {
+        boolean playerBuiltRoom = isPlayerBuiltRoom(level, bestPos, data);
+        if (!playerBuiltRoom && !isStrictPlayerHouse(level, bestPos, data, bestScan)) {
             best.putInt("score", Math.max(0, bestScore - 35));
             return;
         }
@@ -1635,9 +1758,11 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
                 || rememberedPlayerPlacedBlock(data, MEMORY_CONTAINERS, bestPos, 18).isPresent()
                 || rememberedPlayerPlacedBlock(data, MEMORY_DOORS, bestPos, 18).isPresent()
                 || rememberedPlayerPlacedBlock(data, MEMORY_WINDOWS, bestPos, 18).isPresent();
-        boolean enoughVisits = best.getInt("visits") >= 3;
-        boolean strongHouse = bestScore >= 130 && bestScan.playerPlaced >= 24 && bestScan.enclosure >= 24 && hasUtility;
-        boolean livedThere = best.getInt("night") >= 1 || data.getLong(HOME_TIME) >= 20L * 60L;
+        boolean enoughVisits = playerBuiltRoom ? best.getInt("visits") >= 1 : best.getInt("visits") >= 3;
+        boolean strongHouse = playerBuiltRoom
+                ? bestScore >= 55 && bestScan.playerPlaced >= 12
+                : bestScore >= 130 && bestScan.playerPlaced >= 24 && bestScan.enclosure >= 24 && hasUtility;
+        boolean livedThere = playerBuiltRoom || best.getInt("night") >= 1 || data.getLong(HOME_TIME) >= 20L * 60L;
         if (!enoughVisits || !strongHouse || !livedThere) {
             return;
         }
