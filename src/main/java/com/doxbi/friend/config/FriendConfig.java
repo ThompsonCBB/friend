@@ -21,7 +21,7 @@ public final class FriendConfig {
         builder.push("friend");
         ENABLE_FRIEND = builder.comment("Master switch for Friend director logic.").define("enableFriend", true);
         ENABLE_DREAMS = builder.comment("Allow nightmare corridor events.").define("enableDreams", true);
-        ENABLE_VOID = builder.comment("Allow the cat curse ending dimension.").define("enableVoid", true);
+        ENABLE_VOID = builder.comment("Legacy disabled option. Void sequence is removed; phase ? only kills.").define("enableVoid", false);
         ENABLE_CAT_CURSE = builder.comment("Enable secret phase after killing a cat.").define("enableCatCurse", true);
         ENABLE_BLOCK_DESTRUCTION = builder.comment("Allow Friend to break only player-placed anti-abuse blocks during chase logic.").define("enableBlockDestruction", true);
         EVENT_FREQUENCY_MULTIPLIER = builder.comment("Lower values make ambient events more frequent.").defineInRange("eventFrequencyMultiplier", 1.0D, 0.1D, 10.0D);
