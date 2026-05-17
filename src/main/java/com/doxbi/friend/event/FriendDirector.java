@@ -570,9 +570,9 @@ public final class FriendDirector {
                             ServerPlayer player = ctx.getSource().getPlayerOrException();
                             cleanupOwnedFriends(player.serverLevel(), player);
                             CompoundTag data = state(player);
-                            boolean ok = spawnCornerPeek(player.serverLevel(), player, data, "corner_peek", true);
+                            boolean ok = FriendStalkingDirector.tryStart(player.serverLevel(), player, data, "corner");
                             if (!ok) {
-                                ok = FriendStalkingDirector.tryStart(player.serverLevel(), player, data, "corner");
+                                ok = FriendStalkingDirector.tryStart(player.serverLevel(), player, data, null);
                             }
                             if (ok) {
                                 ctx.getSource().sendSuccess(() -> Component.literal("Friend peek spawned | " + FriendStalkingDirector.debugStatus(data)), false);
@@ -2893,9 +2893,12 @@ private static void updateInterest(ServerLevel level, ServerPlayer player, Compo
             return false;
         }
         data.putInt(PEEK_CHAIN_COUNT, data.getInt(PEEK_CHAIN_COUNT) - 1);
-        boolean handFirst = data.getInt(PHASE) >= 4 && RANDOM.nextFloat() < 0.45F;
-        if (spawnCornerPeek(level, player, data, handFirst ? "hand_peek" : "corner_peek")) {
-            data.putLong(EVENT_COOLDOWN, time + seconds(65, 150));
+        if (FriendStalkingDirector.tryStart(level, player, data, "corner")) {
+            data.putLong(EVENT_COOLDOWN, time + seconds(45, 105));
+            return true;
+        }
+        if (FriendStalkingDirector.tryStart(level, player, data, null)) {
+            data.putLong(EVENT_COOLDOWN, time + seconds(55, 120));
             return true;
         }
         return false;

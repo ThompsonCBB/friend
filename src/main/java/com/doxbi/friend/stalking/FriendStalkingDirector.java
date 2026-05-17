@@ -77,10 +77,6 @@ public final class FriendStalkingDirector {
         }
         friend.moveTo(chosen.hiddenAnchor().x, chosen.hiddenAnchor().y, chosen.hiddenAnchor().z, chosen.bodyYaw(), 0.0F);
         friend.configure(player.getUUID().toString(), eventId, forced != null ? 20 * 10 : lifetime(chosen, intensity), 0);
-        if (forced != null && forced != CoverType.DISTANT_OBSERVE) {
-            friend.startDebugForcedPeek(20 * 7);
-            friend.getPersistentData().putLong("friend_command_peek_until", level.getGameTime() + 20L * 7L);
-        }
         friend.noPhysics = false;
         friend.setNoGravity(false);
         friend.setNoAi(false);
@@ -98,7 +94,10 @@ public final class FriendStalkingDirector {
         tag.putDouble("friend_peek_y", chosen.peekAnchor().y);
         tag.putDouble("friend_peek_z", chosen.peekAnchor().z);
         tag.putInt("friend_stalking_state", stateFor(chosen).ordinal());
-        tag.putInt("friend_spotted_required", spottedTicksRequired(phase, rage, chosen.coverType()));
+        tag.putInt("friend_spotted_required", forced != null ? Math.max(24, spottedTicksRequired(phase, rage, chosen.coverType()) + 18) : spottedTicksRequired(phase, rage, chosen.coverType()));
+        if (forced != null) {
+            tag.putLong("friend_stalking_grace_until", level.getGameTime() + 20L * 3L);
+        }
         friend.lookAt(EntityAnchorArgument.Anchor.EYES, player.getEyePosition());
         level.addFreshEntity(friend);
 
@@ -127,28 +126,30 @@ public final class FriendStalkingDirector {
         boolean inStrict = FriendPerception.isPointInStrictFov(player, peek);
         boolean line = FriendPerception.hasLineOfSight(player, peek, mode);
 
+        friend.getNavigation().stop();
+        friend.setDeltaMovement(Vec3.ZERO);
         friend.lookAt(EntityAnchorArgument.Anchor.EYES, player.getEyePosition());
-        if (friend.isDebugForcedPeekActive() || level.getGameTime() < tag.getLong("friend_command_peek_until")) {
-            tag.putInt(FriendEntity.TAG_PEEK_PANIC_TICKS, 0);
-            tag.putInt(FriendEntity.TAG_LIFETIME, Math.max(tag.getInt(FriendEntity.TAG_LIFETIME), 45));
-            friend.getNavigation().stop();
-            friend.setDeltaMovement(Vec3.ZERO);
+
+        double approachDistance = player.distanceTo(friend);
+        if (approachDistance < (type == CoverType.DISTANT_OBSERVE ? 8.0D : 5.2D)) {
+            slipBehind(level, player, friend, data, type.name().toLowerCase(Locale.ROOT) + "_approached");
             return true;
         }
-        if (inStrict && line && fraction >= 0.08D) {
+
+        if (level.getGameTime() >= tag.getLong("friend_stalking_grace_until") && inStrict && line && fraction >= 0.08D) {
             int ticks = tag.getInt(FriendEntity.TAG_PEEK_PANIC_TICKS) + 1;
             tag.putInt(FriendEntity.TAG_PEEK_PANIC_TICKS, ticks);
-            if (ticks >= tag.getInt("friend_spotted_required")) {
+            if (ticks >= Math.max(18, tag.getInt("friend_spotted_required"))) {
                 return spotted(level, player, friend, data, type, fraction);
             }
         } else {
             tag.putInt(FriendEntity.TAG_PEEK_PANIC_TICKS, 0);
         }
 
-        if (friend.tickCount == 18 || (friend.tickCount > 40 && friend.tickCount % 47 == 0 && RANDOM.nextFloat() < 0.28F)) {
+        if (friend.tickCount == 18 || (friend.tickCount > 60 && friend.tickCount % 55 == 0 && RANDOM.nextFloat() < 0.32F)) {
             level.playSound(null, friend.blockPosition(), FriendSoundEvents.QUIET_BREATH.get(), SoundSource.AMBIENT, 0.055F, 0.82F + RANDOM.nextFloat() * 0.2F);
         }
-        if (friend.tickCount > 70 && RANDOM.nextFloat() < 0.018F) {
+        if (friend.tickCount > 20 * 8 && RANDOM.nextFloat() < 0.018F) {
             FriendStalkingMemory.ignored(data);
             slipBehind(level, player, friend, data, "ignored_exit");
             return true;
@@ -185,7 +186,6 @@ public final class FriendStalkingDirector {
     }
 
     private static boolean spotted(ServerLevel level, ServerPlayer player, FriendEntity friend, CompoundTag data, CoverType type, double fraction) {
-        // A peek being noticed must stay a peek: it should retreat, not convert into a cheap attack.
         FriendStalkingMemory.spotted(data);
         slipBehind(level, player, friend, data, type.name().toLowerCase(Locale.ROOT) + "_spotted");
         return true;
@@ -194,13 +194,9 @@ public final class FriendStalkingDirector {
     private static void slipBehind(ServerLevel level, ServerPlayer player, FriendEntity friend, CompoundTag data, String reason) {
         String side = friend.getPersistentData().getString("friend_peek_side");
         friend.setEventId("RIGHT".equals(side) ? "stalk_slip_right" : "stalk_slip_left");
-        friend.getPersistentData().putInt(FriendEntity.TAG_LIFETIME, 16);
-
-        // Do not push the real entity backwards. The retreat is visual-only through the animation,
-        // otherwise Friend looks like he is flying away from the cover.
+        friend.getPersistentData().putInt(FriendEntity.TAG_LIFETIME, 34);
         friend.getNavigation().stop();
         friend.setDeltaMovement(Vec3.ZERO);
-
         FriendStalkingMemory.setDebugSummary(data, FriendStalkingState.SLIPPING_BEHIND,
                 FriendCoverQuery.detectContext(level, player, data), null, 0, side, reason);
         level.playSound(null, friend.blockPosition(), FriendSoundEvents.DISAPPEAR_SOFT.get(), SoundSource.AMBIENT, 0.10F, 0.72F + RANDOM.nextFloat() * 0.18F);
@@ -397,15 +393,15 @@ public final class FriendStalkingDirector {
     }
 
     private static int spottedTicksRequired(int phase, boolean rage, CoverType type) {
-        if (rage) return 1;
-        int base = type == CoverType.DISTANT_OBSERVE ? 10 : type == CoverType.WINDOW ? 5 : 6;
-        if (phase >= 7) return Math.max(1, base - 4);
-        if (phase >= 5) return Math.max(2, base - 2);
+        int base = type == CoverType.DISTANT_OBSERVE ? 26 : type == CoverType.WINDOW ? 18 : 22;
+        if (rage) return Math.max(12, base - 6);
+        if (phase >= 7) return Math.max(14, base - 5);
+        if (phase >= 5) return Math.max(16, base - 3);
         return base;
     }
 
     private static int lifetime(CoverCandidate c, int intensity) {
-        int base = c.coverType() == CoverType.DISTANT_OBSERVE ? 20 * 12 : 20 * (4 + RANDOM.nextInt(4));
+        int base = c.coverType() == CoverType.DISTANT_OBSERVE ? 20 * 14 : 20 * (8 + RANDOM.nextInt(5));
         return intensity >= 3 ? base + 50 : base;
     }
 
